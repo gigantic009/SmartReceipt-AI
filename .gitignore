@@ -100,3 +100,8 @@ db.sqlite3-journal
 __pypackages__/
 .streamlit/secrets.toml
 .abstra/
+
+# Local receipt database (contains potentially sensitive receipt data)
+backend/data/
+*.sqlite3
+*.sqlite3-journal
