@@ -1,118 +1,96 @@
-
+import os
+import shutil
 from pathlib import Path
 
 import pytesseract
 from PIL import Image
 
 
-# Locate the Tesseract executable
-TESSERACT_PATH = Path(
-    r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-)
+def _resolve_tesseract() -> str | None:
+    """Find Tesseract from configuration, PATH, or common Windows install."""
+    configured = os.getenv("TESSERACT_CMD")
+    if configured:
+        return configured
 
-# Configure pytesseract
-if not TESSERACT_PATH.exists():
-    raise FileNotFoundError(
-        f"Tesseract executable not found: {TESSERACT_PATH}"
-    )
+    discovered = shutil.which("tesseract")
+    if discovered:
+        return discovered
 
-pytesseract.pytesseract.tesseract_cmd = str(TESSERACT_PATH)
+    windows_default = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
+    if windows_default.is_file():
+        return str(windows_default)
+
+    return None
 
 
-def extract_text(image_path: str) -> str:
-    """
-    Extract text from a receipt image using Tesseract OCR.
-    """
+TESSERACT_CMD = _resolve_tesseract()
 
-    image_path = Path(image_path)
 
-    if not image_path.exists():
-        raise FileNotFoundError(
-            f"Image not found: {image_path}"
+def _configure_tesseract() -> None:
+    """Configure Tesseract only when OCR is requested, not at module import."""
+    if not TESSERACT_CMD:
+        raise RuntimeError(
+            "Tesseract OCR was not found. Install Tesseract and add it to PATH, "
+            "or set the TESSERACT_CMD environment variable."
         )
 
-    with Image.open(image_path) as image:
+    if Path(TESSERACT_CMD).is_absolute() and not Path(TESSERACT_CMD).is_file():
+        raise RuntimeError(
+            f"Tesseract executable does not exist: {TESSERACT_CMD}"
+        )
 
-        # OCR configuration
-        config = "--oem 3 --psm 6"
+    pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
 
-        extracted_text = pytesseract.image_to_string(
+
+def extract_text(image_path: str | Path) -> str:
+    """Extract complete text from a receipt image using Tesseract OCR."""
+    _configure_tesseract()
+    path = Path(image_path)
+
+    if not path.is_file():
+        raise FileNotFoundError(f"Image not found: {path}")
+
+    with Image.open(path) as image:
+        return pytesseract.image_to_string(
             image,
             lang="eng",
-            config=config
-        )
+            config="--oem 3 --psm 6"
+        ).strip()
 
-    return extracted_text.strip()
-def extract_text_with_confidence(image_path: str):
-    """
-    Extract words along with their OCR confidence scores.
-    """
 
-    image_path = Path(image_path)
+def extract_text_with_confidence(image_path: str | Path) -> list[dict]:
+    """Extract recognized words with confidence and bounding-box data."""
+    _configure_tesseract()
+    path = Path(image_path)
 
-    if not image_path.exists():
-        raise FileNotFoundError(
-            f"Image not found: {image_path}"
-        )
+    if not path.is_file():
+        raise FileNotFoundError(f"Image not found: {path}")
 
-    with Image.open(image_path) as image:
-
-        config = "--oem 3 --psm 6"
-
+    with Image.open(path) as image:
         data = pytesseract.image_to_data(
             image,
             lang="eng",
-            config=config,
+            config="--oem 3 --psm 6",
             output_type=pytesseract.Output.DICT
         )
 
     results = []
-
-    for i, word in enumerate(data["text"]):
-
-        word = word.strip()
-
+    for index, raw_word in enumerate(data["text"]):
+        word = raw_word.strip()
         if not word:
             continue
 
-        confidence = float(data["conf"][i])
-
+        confidence = float(data["conf"][index])
         if confidence < 0:
             continue
 
         results.append({
             "word": word,
             "confidence": confidence,
-            "left": data["left"][i],
-            "top": data["top"][i],
-            "width": data["width"][i],
-            "height": data["height"][i]
+            "left": data["left"][index],
+            "top": data["top"][index],
+            "width": data["width"][index],
+            "height": data["height"][index]
         })
 
     return results
-
-if __name__ == "__main__":
-
-    receipt_path = (
-        "backend/ocr_ready/"
-        "12cfe97d-46fb-45fa-b618-1c18795271ba.png"
-    )
-
-    # Test 1: Extract complete text
-    text = extract_text(receipt_path)
-
-    print("\n========== OCR RESULT ==========\n")
-    print(text)
-
-    # Test 2: Extract words with confidence scores
-    results = extract_text_with_confidence(receipt_path)
-
-    print("\n====== OCR CONFIDENCE SCORES ======\n")
-
-    for item in results:
-        print(
-            f"Word: {item['word']:<20} "
-            f"Confidence: {item['confidence']:>6.2f}%"
-        )
-
-    print("\n===================================")
