@@ -4,6 +4,7 @@ import uuid
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from PIL import Image, UnidentifiedImageError
 
+from backend.app.image_security import validate_image_dimensions
 from backend.app.image_processor import (
     PreprocessConfig,
     load_image,
@@ -78,8 +79,12 @@ async def upload_receipt(file: UploadFile = File(...)):
         try:
             with Image.open(upload_path) as image:
                 image_format = image.format
+                width, height = image.size
+                validate_image_dimensions(width, height)
                 image.verify()
-        except (UnidentifiedImageError, OSError):
+        except ValueError as error:
+            raise HTTPException(status_code=413, detail=str(error)) from error
+        except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
             raise HTTPException(
                 status_code=400,
                 detail="The uploaded file is not a valid image."
