@@ -63,22 +63,35 @@ def extract_amount(text: str, label: str) -> str | None:
     return _extract_labeled_value(text, (re.escape(label),))
 
 
-def extract_final_payment(text: str) -> str | None:
-    """Extract final payment or amount-paid values despite noisy payment labels."""
-    labels = re.compile(r"(?<![A-Za-z])(?:Final\s*Payment|Amount\s*Paid|Paid\s*Amount)(?![A-Za-z])", re.IGNORECASE)
-    stop_labels = re.compile(r"(?<![A-Za-z])(?:Grand\s*Total|Total\s*Amount|Invoice\s*Total|Subtotal|CGST|SGST|IGST|Round\s*Off|Balance)(?![A-Za-z])", re.IGNORECASE)
+def _extract_payment_value(text: str, labels: tuple[str, ...]) -> str | None:
+    label_pattern = re.compile(
+        r"(?<![A-Za-z])(?:" + "|".join(labels) + r")(?![A-Za-z])",
+        re.IGNORECASE,
+    )
+    stop_labels = re.compile(
+        r"(?<![A-Za-z])(?:Grand\s*Total|Total\s*Amount|Invoice\s*Total|Subtotal|CGST|SGST|IGST|Round\s*Off|Balance)(?![A-Za-z])",
+        re.IGNORECASE,
+    )
     for line in _lines(text):
-        match = labels.search(line)
+        match = label_pattern.search(line)
         if not match:
             continue
         tail = line[match.end():]
         boundary = stop_labels.search(tail)
         if boundary:
             tail = tail[:boundary.start()]
+        # Mixed digit/letter tokens can mean OCR lost leading amount digits.
+        if re.search(r"\d+[A-Za-z]\s+[0-9]", tail):
+            return None
         candidates = AMOUNT_TOKEN.findall(tail)
         if candidates:
             return candidates[-1]
     return None
+
+
+def extract_final_payment(text: str) -> str | None:
+    """Extract an explicitly labelled final payment, not a generic amount paid."""
+    return _extract_payment_value(text, (r"Final\s*Payment", r"Paid\s*Amount"))
 
 
 def normalize_receipt_amount(value: str | None) -> str | None:
@@ -109,6 +122,7 @@ def parse_receipt(text: str) -> dict:
             text, (r"Advance", r"Deposit", r"Amount\s*Received\s*Earlier")
         ),
         "final_payment": extract_final_payment(text),
+        "amount_paid": _extract_payment_value(text, (r"Amount\s*Paid",)),
         "balance": _extract_labeled_value(
             text, (r"Balance\s*Due", r"Outstanding", r"Due\s*Amount", r"Balance")
         ),
@@ -118,8 +132,6 @@ def parse_receipt(text: str) -> dict:
         key: normalize_receipt_amount(value)
         for key, value in raw_amounts.items()
     }
-    raw_amounts["amount_paid"] = raw_amounts["final_payment"]
-    normalized_amounts["amount_paid"] = normalized_amounts["final_payment"]
     return {
         **extract_basic_details(text),
         **normalized_amounts,
