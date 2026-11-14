@@ -40,13 +40,13 @@ def extract_basic_details(text: str) -> dict:
         text, re.IGNORECASE,
     )
     guest_match = re.search(
-        r"\b(?:Guest\s*Name|Guest|Customer\s*Name|Customer)\s*[:#-]?\s*([^\r\n]+)",
+        r"\b(?:Guest\s*(?:Name|Neme)?|Customer\s*Name|Customer)\s*[:#-]?\s*([^\r\n]+)",
         text, re.IGNORECASE,
     )
     return {
         "bill_number": bill_match.group(1).strip() if bill_match else None,
         "issue_date": date_match.group(1).strip() if date_match else None,
-        "guest_name": re.split(r"\\s+Room\\s*(?:No|Number)\\b", guest_match.group(1), maxsplit=1, flags=re.IGNORECASE)[0].strip(" :-") if guest_match else None,
+        "guest_name": re.split(r"\s+Room\s*(?:No|Number)\b", guest_match.group(1), maxsplit=1, flags=re.IGNORECASE)[0].strip(" :-") if guest_match else None,
     }
 
 
@@ -57,9 +57,20 @@ def extract_amount(text: str, label: str) -> str | None:
 
 def extract_final_payment(text: str) -> str | None:
     """Extract final payment or amount-paid values despite noisy payment labels."""
-    return _extract_labeled_value(
-        text, (r"Final\s*Payment", r"Amount\s*Paid", r"Paid\s*Amount")
-    )
+    labels = re.compile(r"(?<![A-Za-z])(?:Final\s*Payment|Amount\s*Paid|Paid\s*Amount)(?![A-Za-z])", re.IGNORECASE)
+    stop_labels = re.compile(r"(?<![A-Za-z])(?:Grand\s*Total|Total\s*Amount|Invoice\s*Total|Subtotal|CGST|SGST|IGST|Round\s*Off|Balance)(?![A-Za-z])", re.IGNORECASE)
+    for line in _lines(text):
+        match = labels.search(line)
+        if not match:
+            continue
+        tail = line[match.end():]
+        boundary = stop_labels.search(tail)
+        if boundary:
+            tail = tail[:boundary.start()]
+        candidates = AMOUNT_TOKEN.findall(tail)
+        if candidates:
+            return candidates[-1]
+    return None
 
 
 def normalize_receipt_amount(value: str | None) -> str | None:
