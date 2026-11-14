@@ -4,6 +4,7 @@ import uuid
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from PIL import Image, UnidentifiedImageError
 
+from backend.app.database import save_receipt
 from backend.app.image_security import validate_image_dimensions
 from backend.app.image_processor import (
     PreprocessConfig,
@@ -135,21 +136,34 @@ async def upload_receipt(file: UploadFile = File(...)):
             or average_confidence is None
             or average_confidence < 85
         )
+        response_status = "review_required" if review_required else "success"
+        ocr_summary = {
+            "average_confidence": average_confidence,
+            "word_count": len(confidence_items),
+            "review_required": review_required
+        }
+
+        save_receipt(
+            receipt_id=receipt_id,
+            original_filename=upload_path.name,
+            processed_filename=processed_path.name,
+            status=response_status,
+            ocr_text=ocr_text,
+            receipt=parsed_receipt,
+            validation=validation,
+            ocr=ocr_summary,
+        )
 
         return {
             "message": "Receipt processed successfully.",
-            "status": "review_required" if review_required else "success",
+            "status": response_status,
             "receipt_id": receipt_id,
             "filename": upload_path.name,
             "processed_filename": processed_path.name,
             "ocr_text": ocr_text,
             "receipt": parsed_receipt,
             "validation": validation,
-            "ocr": {
-                "average_confidence": average_confidence,
-                "word_count": len(confidence_items),
-                "review_required": review_required
-            }
+            "ocr": ocr_summary
         }
 
     except HTTPException:
