@@ -9,6 +9,7 @@ An AI-powered receipt scanner that extracts structured information from receipt 
 - Image-content verification and preprocessing with OpenCV
 - OCR using Tesseract
 - Receipt field extraction across common invoice label variations (bill/invoice number, date, guest/customer, tax, total, and payment labels)
+- Local SQLite persistence for OCR text, parsed receipt fields, validation results, and confidence metadata
 - Preservation of raw OCR amounts alongside normalized values
 - Conservative handling of missing fields: uncertain values are left blank and sent for human review
 - Tax-total and payment reconciliation
@@ -112,10 +113,11 @@ requirements.txt
 - Receipt extraction is still rule-based. It recognizes several common label variations, but complex tables, unusual layouts, poor image quality, and OCR mistakes can still require manual review.
 - The parser does not infer missing subtotal/tax/payment values from line items. This is intentional to avoid fabricating financial data.
 - The current OCR pipeline uses English Tesseract and a single page-segmentation mode; multilingual receipts and difficult layouts need further evaluation.
-- Receipt records are not yet persisted in a database.
+- Receipt records are persisted locally in `backend/data/receipts.sqlite3`; the database is ignored by Git because it may contain personal and financial information.
+- There are not yet authenticated receipt-history endpoints or user-level data isolation.
 - The API currently returns OCR and parsed data directly; a frontend and authentication are planned.
 - Human review is required for low-confidence or financially inconsistent results.
 
 ## Privacy and security
 
-Do not commit real receipts, personal data, API keys, or environment secrets. Generated upload and preprocessing directories are excluded by `.gitignore`.
+Do not commit real receipts, personal data, API keys, local database files, or environment secrets. Generated upload, preprocessing, and database directories are excluded by `.gitignore`. The current local SQLite database is not encrypted and must not be used for sensitive production data. Before deployment, add authentication, per-user authorization, retention/deletion controls, encrypted storage, and secure backups.
