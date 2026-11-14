@@ -39,10 +39,18 @@ def extract_basic_details(text: str) -> dict:
         r"\b(?:Date|Issued|Invoice\s*Date)\s*[:#-]?\s*(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}|\d{1,2}[-/]\d{1,2}[-/]\d{2,4})",
         text, re.IGNORECASE,
     )
-    guest_match = re.search(
+    guest_match = None
+    guest_pattern = re.compile(
         r"\b(?:Guest\s*(?:Name|Neme)?|Customer\s*Name|Customer)\s*[:#-]?\s*([^\r\n]+)",
-        text, re.IGNORECASE,
+        re.IGNORECASE,
     )
+    for candidate in guest_pattern.finditer(text):
+        candidate_value = candidate.group(1).strip(" :-")
+        # Ignore section headings such as "Guest Details Stay Details".
+        if re.match(r"Details\b", candidate_value, re.IGNORECASE):
+            continue
+        guest_match = candidate
+        break
     return {
         "bill_number": bill_match.group(1).strip() if bill_match else None,
         "issue_date": date_match.group(1).strip() if date_match else None,
