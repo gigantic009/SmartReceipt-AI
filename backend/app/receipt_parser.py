@@ -46,7 +46,7 @@ def extract_basic_details(text: str) -> dict:
     return {
         "bill_number": bill_match.group(1).strip() if bill_match else None,
         "issue_date": date_match.group(1).strip() if date_match else None,
-        "guest_name": guest_match.group(1).strip(" :-") if guest_match else None,
+        "guest_name": re.split(r"\\s+Room\\s*(?:No|Number)\\b", guest_match.group(1), maxsplit=1, flags=re.IGNORECASE)[0].strip(" :-") if guest_match else None,
     }
 
 
