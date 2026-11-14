@@ -161,7 +161,7 @@ async def upload_receipt(file: UploadFile = File(...)):
             path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=503,
-            detail=f"Receipt processing is unavailable: {error}"
+            detail="Receipt processing is temporarily unavailable. Check the server configuration and logs."
         ) from error
     except Exception as error:
         for path in (upload_path, processed_path):
