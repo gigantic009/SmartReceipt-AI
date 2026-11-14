@@ -1,4 +1,3 @@
-
 from decimal import Decimal
 
 
@@ -8,15 +7,9 @@ def validate_tax_total(
     sgst: Decimal,
     total: Decimal
 ) -> dict:
-    """
-    Validate whether subtotal + CGST + SGST equals total.
-    """
-
+    """Check whether subtotal plus CGST and SGST equals the receipt total."""
     calculated_total = subtotal + cgst + sgst
-
     difference = abs(calculated_total - total)
-
-    is_valid = difference == Decimal("0.00")
 
     return {
         "subtotal": str(subtotal),
@@ -25,33 +18,35 @@ def validate_tax_total(
         "expected_total": str(calculated_total),
         "receipt_total": str(total),
         "difference": str(difference),
-        "is_valid": is_valid
+        "is_valid": difference == Decimal("0.00")
     }
 
 
 def validate_payment(
     advance: Decimal,
     final_payment: Decimal,
-    total: Decimal
+    total: Decimal,
+    balance: Decimal | None = None
 ) -> dict:
-    """
-    Validate whether advance + final payment equals total.
-    """
-
+    """Reconcile advance, final payment, and optional outstanding balance."""
     calculated_payment = advance + final_payment
+    if balance is not None:
+        calculated_payment += balance
 
     difference = abs(calculated_payment - total)
 
-    is_valid = difference == Decimal("0.00")
-
-    return {
+    result = {
         "advance": str(advance),
         "final_payment": str(final_payment),
         "expected_total": str(calculated_payment),
         "receipt_total": str(total),
         "difference": str(difference),
-        "is_valid": is_valid
+        "is_valid": difference == Decimal("0.00")
     }
+    if balance is not None:
+        result["balance"] = str(balance)
+
+    return result
 
 
 def validate_receipt(
@@ -60,100 +55,22 @@ def validate_receipt(
     sgst: Decimal,
     advance: Decimal,
     final_payment: Decimal,
-    total: Decimal
+    total: Decimal,
+    balance: Decimal | None = None
 ) -> dict:
-    """
-    Run all financial validation checks
-    and generate one combined report.
-    """
-
-    tax_result = validate_tax_total(
-        subtotal,
-        cgst,
-        sgst,
-        total
-    )
-
+    """Run tax and payment checks and return a combined validation report."""
+    tax_result = validate_tax_total(subtotal, cgst, sgst, total)
     payment_result = validate_payment(
         advance,
         final_payment,
-        total
+        total,
+        balance
     )
 
-    overall_valid = (
-        tax_result["is_valid"]
-        and payment_result["is_valid"]
-    )
+    overall_valid = tax_result["is_valid"] and payment_result["is_valid"]
 
     return {
         "tax_validation": tax_result,
         "payment_validation": payment_result,
-        "overall_status": (
-            "valid" if overall_valid else "review_required"
-        )
+        "overall_status": "valid" if overall_valid else "review_required"
     }
-
-if __name__ == "__main__":
-
-    # Sample receipt values
-    subtotal = Decimal("6850.00")
-    cgst = Decimal("171.25")
-    sgst = Decimal("171.25")
-    total = Decimal("7192.50")
-
-    # Test 1: Tax validation
-    result = validate_tax_total(
-        subtotal,
-        cgst,
-        sgst,
-        total
-    )
-
-    print("\n===== TAX VALIDATION RESULT =====\n")
-
-    for key, value in result.items():
-        print(f"{key}: {value}")
-
-    print("\n=================================\n")
-
-    # Sample payment values
-    advance = Decimal("2000.00")
-    final_payment = Decimal("5192.50")
-
-    # Test 2: Payment validation
-    payment_result = validate_payment(
-        advance,
-        final_payment,
-        total
-    )
-
-    print("\n===== PAYMENT VALIDATION RESULT =====\n")
-
-    for key, value in payment_result.items():
-        print(f"{key}: {value}")
-
-    print("\n======================================\n")	
-
-    # Test 3: Complete receipt validation
-
-    final_result = validate_receipt(
-        subtotal,
-        cgst,
-        sgst,
-        advance,
-        final_payment,
-        total
-    )
-
-    print("\n===== COMPLETE RECEIPT VALIDATION =====\n")
-
-    print("Tax validation:",
-          final_result["tax_validation"]["is_valid"])
-
-    print("Payment validation:",
-          final_result["payment_validation"]["is_valid"])
-
-    print("Overall status:",
-          final_result["overall_status"])
-
-    print("\n========================================\n")
