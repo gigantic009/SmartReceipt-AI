@@ -4,7 +4,8 @@ An AI-powered receipt scanner that extracts structured information from receipt 
 
 ## Current MVP features
 
-- JPEG and PNG receipt upload (maximum 10 MB)
+- JPEG and PNG receipt upload (maximum 10 MB, 25 million pixels, and 12,000 pixels per dimension)
+- Image dimension checks to reduce decompression-bomb and oversized-image risks
 - Image-content verification and preprocessing with OpenCV
 - OCR using Tesseract
 - Receipt field extraction across common invoice label variations (bill/invoice number, date, guest/customer, tax, total, and payment labels)
