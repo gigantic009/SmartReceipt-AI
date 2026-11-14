@@ -72,7 +72,7 @@ def test_hotel_invoice_alternate_labels_are_extracted():
     receipt = parse_receipt(HOTEL_OCR_SAMPLE)
     assert receipt["bill_number"] == "HB2026101501"
     assert receipt["issue_date"] == "16 Oct 2026"
-    assert receipt["guest_name"] == "Rahul Meta Room No. : w2"
+    assert receipt["guest_name"] == "Rahul Meta"
     assert receipt["cgst"] == "684.00"
     assert receipt["round_off"] == "18.00"
     assert receipt["total"] == "12750.00"
