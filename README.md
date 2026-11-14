@@ -7,7 +7,9 @@ An AI-powered receipt scanner that extracts structured information from receipt 
 - JPEG and PNG receipt upload (maximum 10 MB)
 - Image-content verification and preprocessing with OpenCV
 - OCR using Tesseract
-- Receipt field extraction and amount normalization
+- Receipt field extraction across common invoice label variations (bill/invoice number, date, guest/customer, tax, total, and payment labels)
+- Preservation of raw OCR amounts alongside normalized values
+- Conservative handling of missing fields: uncertain values are left blank and sent for human review
 - Tax-total and payment reconciliation
 - OCR confidence summary and review-required status
 - Automated unit tests for parsing, normalization, and validation
@@ -106,7 +108,9 @@ requirements.txt
 
 ## Current limitations
 
-- The MVP uses rule-based extraction tailored to the current sample receipt format; it is not yet a general-purpose parser for every merchant layout.
+- Receipt extraction is still rule-based. It recognizes several common label variations, but complex tables, unusual layouts, poor image quality, and OCR mistakes can still require manual review.
+- The parser does not infer missing subtotal/tax/payment values from line items. This is intentional to avoid fabricating financial data.
+- The current OCR pipeline uses English Tesseract and a single page-segmentation mode; multilingual receipts and difficult layouts need further evaluation.
 - Receipt records are not yet persisted in a database.
 - The API currently returns OCR and parsed data directly; a frontend and authentication are planned.
 - Human review is required for low-confidence or financially inconsistent results.
