@@ -1,20 +1,27 @@
 
-# Python virtual environment
+# Python virtual environments
 .venv/
 venv/
 env/
+ENV/
+env.bak/
+venv.bak/
 
 # Python cache and bytecode
 __pycache__/
 *.py[cod]
+*$py.class
 *.pyd
+*.so
 
 # Environment variables and secrets
 .env
 .env.*
 !.env.example
+.envrc
+.pypirc
 
-# Generated receipt files
+# SmartReceipt AI generated files
 backend/uploads/
 backend/receipts_raw/
 backend/ocr_ready/
@@ -23,15 +30,73 @@ backend/ocr_ready/
 node_modules/
 frontend/node_modules/
 
-# Build files
-dist/
+# Build and distribution
 build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
 # Testing and coverage
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
+.tox/
+.nox/
+.cache/
+.hypothesis/
+nosetests.xml
+coverage.xml
 
-# IDE files
+# IDE and editor files
 .idea/
 .vscode/
+.spyderproject
+.spyproject
+.ropeproject
+
+# Type checking and linting
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+.ruff_cache/
+cython_debug/
+
+# Jupyter
+.ipynb_checkpoints
+profile_default/
+
+# Logs and temporary files
+*.log
+pip-log.txt
+pip-delete-this-directory.txt
+tempCodeRunnerFile.py
+
+# Databases and local state
+instance/
+db.sqlite3
+db.sqlite3-journal
+
+# Packaging and deployment
+.Python
+*.manifest
+*.spec
+
+# Other environments and tools
+.pixi/
+__pypackages__/
+.streamlit/secrets.toml
+.abstra/
