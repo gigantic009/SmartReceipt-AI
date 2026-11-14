@@ -1,0 +1,37 @@
+
+# Python virtual environment
+.venv/
+venv/
+env/
+
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*.pyd
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Generated receipt files
+backend/uploads/
+backend/receipts_raw/
+backend/ocr_ready/
+
+# Frontend dependencies
+node_modules/
+frontend/node_modules/
+
+# Build files
+dist/
+build/
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE files
+.idea/
+.vscode/
