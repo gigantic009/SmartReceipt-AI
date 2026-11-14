@@ -21,6 +21,7 @@ Balance 0.00
 
 
 HOTEL_OCR_SAMPLE = """
+Guest Details Stay Details
 @ 1230 Roed, Besgaiury » $40001, Karnataka, india HOTEL BILL
 BRB & +91809234 S678 Invoice No: HB2026101501
 SUNRISE HOTEL © nfopeuncisehotetin Date: 16 Oct 2026
