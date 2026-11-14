@@ -77,7 +77,8 @@ def test_hotel_invoice_alternate_labels_are_extracted():
     assert receipt["cgst"] == "684.00"
     assert receipt["round_off"] == "18.00"
     assert receipt["total"] == "12750.00"
-    assert receipt["final_payment"] == "990.00"
+    assert receipt["amount_paid"] is None
+    assert receipt["final_payment"] is None
 
 
 def test_missing_tax_or_advance_is_not_guessed_for_hotel_invoice():
