@@ -96,12 +96,15 @@ A receipt marked `review_required` should be checked by a person. OCR output is 
 ```text
 backend/
   app/
+    database.py
     image_processor.py
+    image_security.py
     main.py
     ocr_corrector.py
     ocr_engine.py
     receipt_parser.py
     validate_receipt.py
+  data/          # local SQLite database; ignored by Git
   uploads/       # generated uploads; ignored by Git
   ocr_ready/     # generated processed images; ignored by Git
 tests/
