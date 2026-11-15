@@ -17,6 +17,7 @@ from backend.app.expense_intelligence import suggest_category
 from backend.app.ai_enrichment import enrich_with_local_model
 from backend.app.document_ingestion import extract_document_text
 from backend.app.reporting import build_financial_workbook, build_financial_pdf
+from backend.app.financial_assistant import answer_financial_question
 from backend.app.image_security import validate_image_dimensions
 from backend.app.image_processor import (
     PreprocessConfig,
@@ -525,4 +526,13 @@ def export_financial_pdf():
         media_type="application/pdf",
         headers={"Content-Disposition": "attachment; filename=smartreceipt-financial-summary.pdf"},
     )
+
+@app.post("/assistant/query")
+def assistant_query(data: dict):
+    question = data.get("question")
+    if not isinstance(question, str) or not question.strip():
+        raise HTTPException(status_code=400, detail="question must be a non-empty string.")
+    if len(question) > 1000:
+        raise HTTPException(status_code=400, detail="question must be 1000 characters or fewer.")
+    return answer_financial_question(question)
 
