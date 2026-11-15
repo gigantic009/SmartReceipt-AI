@@ -1,11 +1,16 @@
 from pathlib import Path
 import uuid
+import hashlib
+import csv
+import io
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, UploadFile, Query
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, UnidentifiedImageError
 
-from backend.app.database import save_receipt
+from backend.app.database import (save_receipt, list_receipts, get_receipt, update_receipt, delete_receipt, find_duplicate, get_analytics)
+from backend.app.expense_intelligence import suggest_category
 from backend.app.image_security import validate_image_dimensions
 from backend.app.image_processor import (
     PreprocessConfig,
@@ -74,6 +79,7 @@ async def upload_receipt(file: UploadFile = File(...)):
 
     try:
         size = 0
+        digest = hashlib.sha256()
         with upload_path.open("wb") as destination:
             while chunk := await file.read(1024 * 1024):
                 size += len(chunk)
@@ -83,6 +89,7 @@ async def upload_receipt(file: UploadFile = File(...)):
                         detail="Receipt image must be 10 MB or smaller."
                     )
                 destination.write(chunk)
+                digest.update(chunk)
 
         if size == 0:
             raise HTTPException(status_code=400, detail="The uploaded file is empty.")
@@ -131,6 +138,10 @@ async def upload_receipt(file: UploadFile = File(...)):
         validation = validate_parsed_receipt(parsed_receipt)
         global_document = parse_global_document(ocr_text)
         global_validation = validate_global_document(global_document)
+        category = suggest_category(global_document.get("merchant_name_candidate"), ocr_text)
+        global_document["category"] = category["category"]
+        global_document["category_suggestion"] = category
+        duplicate = find_duplicate(digest.hexdigest())
 
         confidence_items = extract_text_with_confidence(processed_path)
         average_confidence = (
@@ -164,6 +175,8 @@ async def upload_receipt(file: UploadFile = File(...)):
             receipt=parsed_receipt,
             validation=validation,
             ocr=ocr_summary,
+            global_document=global_document,
+            content_sha256=digest.hexdigest(),
         )
 
         return {
@@ -177,7 +190,9 @@ async def upload_receipt(file: UploadFile = File(...)):
             "global": global_document,
             "global_validation": global_validation,
             "validation": validation,
-            "ocr": ocr_summary
+            "ocr": ocr_summary,
+            "duplicate": {"detected": duplicate is not None, "match": duplicate},
+            "category": category,
         }
 
     except HTTPException:
@@ -200,3 +215,68 @@ async def upload_receipt(file: UploadFile = File(...)):
         ) from error
     finally:
         await file.close()
+ 
+@app.get("/receipts")
+def receipts_list(
+    search: str | None = None,
+    status: str | None = None,
+    category: str | None = None,
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+):
+    """List saved documents with optional search and review filters."""
+    return {"items": list_receipts(search=search, status=status, category=category, limit=limit, offset=offset)}
+
+
+@app.get("/receipts/{receipt_id}")
+def receipt_detail(receipt_id: str):
+    record = get_receipt(receipt_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Receipt not found.")
+    return record
+
+
+@app.patch("/receipts/{receipt_id}")
+def receipt_update(receipt_id: str, fields: dict):
+    """Save user corrections to normalized review fields."""
+    allowed = {"merchant_name", "document_date", "total_amount", "currency_code", "category", "review_notes", "status"}
+    if not fields or not set(fields).issubset(allowed):
+        raise HTTPException(status_code=400, detail="Only supported review fields may be updated.")
+    if "status" in fields and fields["status"] not in {"review_required", "success"}:
+        raise HTTPException(status_code=400, detail="Invalid receipt status.")
+    if not update_receipt(receipt_id, fields):
+        raise HTTPException(status_code=404, detail="Receipt not found or no supported fields supplied.")
+    return get_receipt(receipt_id)
+
+
+@app.delete("/receipts/{receipt_id}")
+def receipt_delete(receipt_id: str):
+    if not delete_receipt(receipt_id):
+        raise HTTPException(status_code=404, detail="Receipt not found.")
+    return {"deleted": True, "receipt_id": receipt_id}
+
+
+@app.get("/analytics")
+def analytics():
+    """Return currency-separated spend totals and category/month breakdowns."""
+    return get_analytics()
+
+
+@app.get("/exports/receipts.csv")
+def export_receipts_csv():
+    """Export the saved receipt register as CSV."""
+    records = list_receipts(limit=500)
+    output = io.StringIO()
+    fields = ["receipt_id", "merchant_name", "document_date", "total_amount",
+              "currency_code", "category", "status", "created_at"]
+    writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
+    writer.writeheader()
+    for record in records:
+        writer.writerow(record)
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=smartreceipt-documents.csv"},
+    )
+
