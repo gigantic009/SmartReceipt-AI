@@ -557,7 +557,7 @@ async def import_transactions_csv(file: UploadFile = File(...)):
         date_col = column("date", "transactiondate", "posteddate", "valuedate")
         desc_col = column("description", "details", "narration", "transactiondetails")
         amount_col = column("amount", "transactionamount")
-        debit_col, credit_col = column("debit", "withdrawal"), column("credit", "deposit")
+        debit_col, credit_col = column("debit", "debitamount", "withdrawal"), column("credit", "creditamount", "deposit")
         currency_col = column("currency", "currencycode", "ccy")
         merchant_col = column("merchant", "payee", "counterparty")
         reference_col = column("reference", "ref", "transactionid", "chequeno")
@@ -566,8 +566,9 @@ async def import_transactions_csv(file: UploadFile = File(...)):
         records, rejected = [], []
         for line_number, row in enumerate(reader, start=2):
             try:
-                raw_amount = row.get(amount_col) if amount_col else (row.get(debit_col) or row.get(credit_col))
-                amount = Decimal(str(raw_amount).replace(",", "").replace("₹", "").replace("$", "").strip())
+                raw_amount = (row.get(amount_col) if amount_col else None) or row.get(debit_col) or row.get(credit_col)
+                raw_amount = re.sub(r"[₹$€£]", "", str(raw_amount)).replace(",", "").strip()
+                amount = Decimal(raw_amount)
                 currency = str(row.get(currency_col, "")).strip().upper()
                 description = str(row.get(desc_col, "")).strip()
                 if not amount.is_finite() or amount == 0 or not re.fullmatch(r"[A-Z]{3}", currency) or not description:
