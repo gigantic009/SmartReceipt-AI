@@ -10,6 +10,7 @@ services:
       TESSERACT_CMD: /usr/bin/tesseract
       TESSERACT_LANGUAGES: eng
       SMARTRECEIPT_AI_PROVIDER: disabled
+      SMARTRECEIPT_CORS_ORIGINS: "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080"
     volumes:
       - smartreceipt_uploads:/app/backend/uploads
       - smartreceipt_ocr:/app/backend/ocr_ready

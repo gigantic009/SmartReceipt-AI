@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 import uuid
 import hashlib
 import csv
@@ -51,7 +52,14 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[
+        origin.strip()
+        for origin in os.getenv(
+            "SMARTRECEIPT_CORS_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080",
+        ).split(",")
+        if origin.strip()
+    ],
     allow_credentials=False,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
