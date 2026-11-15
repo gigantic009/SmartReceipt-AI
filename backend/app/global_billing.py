@@ -64,8 +64,8 @@ def detect_country(text: str) -> dict[str, Any]:
     tied = len(ranked) > 1 and ranked[1][1] == count
     # Explicit country names and country-specific tax identifiers are stronger
     # than generic address fragments. Keep conflicts unresolved.
-    explicit = bool(re.search(r"\\bIndia\\b|\\bUnited States\\b|\\bUSA\\b|\\bUnited Kingdom\\b|\\bAustralia\\b|\\bUnited Arab Emirates\\b", text, re.I))
-    tax_clue = bool(re.search(r"\\bGSTIN\\b|\\bCGST\\b|\\bSGST\\b|\\bIGST\\b", text, re.I))
+    explicit = bool(re.search(r"\bIndia\b|\bUnited States\b|\bUSA\b|\bUnited Kingdom\b|\bAustralia\b|\bUnited Arab Emirates\b", text, re.I))
+    tax_clue = bool(re.search(r"\bGSTIN\b|\bCGST\b|\bSGST\b|\bIGST\b", text, re.I))
     confidence = "ambiguous" if tied else "high" if explicit or (winner == "IN" and tax_clue) or count >= 2 else "medium"
     return {"country_code": None if tied else winner, "confidence": confidence, "evidence": evidence}
 
@@ -74,17 +74,17 @@ def detect_currency(text: str, country_code: str | None) -> dict[str, Any]:
     """Resolve currency conservatively; OCR-noisy symbols must not override locale."""
     upper = text.upper()
     explicit_patterns = {
-        "INR": r"\\bINR\\b|₹|\\bRS\\.?(?=\\s*\\d)",
-        "USD": r"\\bUSD\\b|US\\$",
-        "EUR": r"\\bEUR\\b",
-        "GBP": r"\\bGBP\\b",
-        "CNY": r"\\bCNY\\b|\\bRMB\\b",
-        "JPY": r"\\bJPY\\b",
-        "AUD": r"\\bAUD\\b|A\\$",
-        "CAD": r"\\bCAD\\b|C\\$",
-        "CHF": r"\\bCHF\\b",
-        "SGD": r"\\bSGD\\b|S\\$",
-        "AED": r"\\bAED\\b",
+        "INR": r"\bINR\b|₹|\bRS\.?(?=\s*\d)",
+        "USD": r"\bUSD\b|US\$",
+        "EUR": r"\bEUR\b",
+        "GBP": r"\bGBP\b",
+        "CNY": r"\bCNY\b|\bRMB\b",
+        "JPY": r"\bJPY\b",
+        "AUD": r"\bAUD\b|A\$",
+        "CAD": r"\bCAD\b|C\$",
+        "CHF": r"\bCHF\b",
+        "SGD": r"\bSGD\b|S\$",
+        "AED": r"\bAED\b",
     }
     explicit = [code for code, pattern in explicit_patterns.items() if re.search(pattern, upper, re.I)]
     if len(explicit) == 1:
