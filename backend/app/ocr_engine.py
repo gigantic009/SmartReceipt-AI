@@ -1,4 +1,5 @@
 import os
+import math
 import shutil
 from pathlib import Path
 
@@ -129,7 +130,7 @@ def extract_text_with_confidence_from_pil_image(
             confidence = float(data["conf"][index])
         except (TypeError, ValueError):
             continue
-        if confidence < 0:
+        if not math.isfinite(confidence) or confidence < 0:
             continue
         words.append({
             "word": word,
