@@ -9,7 +9,7 @@ from decimal import Decimal, InvalidOperation
 
 SUMMARY_LABELS = re.compile(
     r"\b(sub\s*total|subtotal|grand\s*total|total\s*due|invoice\s*total|"
-    r"total\s*amount|tax|vat|gst|cgst|sgst|igst|discount|balance|amount\s*paid|"
+    r"total\s*amount|total|tax|vat|gst|cgst|sgst|igst|discount|balance|amount\s*paid|"
     r"change|cash|card|visa|mastercard|payment|round\s*off|service\s*charge)\b",
     re.I,
 )
