@@ -6,7 +6,7 @@ from typing import Any
 
 CURRENCY_MARKERS = {
     "INR": ("₹", "INR", "RS."), "USD": ("USD", "US$", "$"),
-    "EUR": ("€", "EUR"), "GBP": ("£", "GBP"), "CNY": ("CNY", "RMB"),
+    "EUR": ("€", "EUR"), "GBP": ("£", "GBP"), "CNY": ("CNY", "RMB", "¥"),
     "JPY": ("JPY", "円", "¥"), "AUD": ("A$", "AUD"), "CAD": ("C$", "CAD"),
     "CHF": ("CHF",), "SGD": ("S$", "SGD"), "AED": ("AED", "د.إ"),
 }
