@@ -227,6 +227,8 @@ Copy `.env.example` to `.env`. Core functionality does not require API keys, pay
 | `SMARTRECEIPT_AI_PROVIDER` | `disabled` | Optional enrichment switch |
 | `OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | Local Ollama endpoint |
 | `OLLAMA_MODEL` | `llama3.1:8b` | Local model name |
+| `SMARTRECEIPT_CORS_ORIGINS` | Local Vite and Compose origins | Allowed browser origins for the API |
+| `VITE_API_URL` | `http://localhost:8000` | Browser-reachable API URL baked into the frontend Docker build |
 
 ### Optional local AI (not required)
 
