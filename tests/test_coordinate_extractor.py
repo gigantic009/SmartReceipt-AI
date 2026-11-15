@@ -4,6 +4,7 @@ from backend.app.coordinate_extractor import (
     extract_field,
     find_amount_candidates,
     find_label,
+    interpret_round_off_crop_tokens,
     normalize_amount_token,
 )
 
