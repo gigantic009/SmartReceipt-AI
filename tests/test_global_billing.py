@@ -27,3 +27,18 @@ def test_missing_tax_is_not_a_required_field():
     parsed = parse_global_document("Corner Shop\nTotal INR 500.00")
     assert parsed["taxes"] == []
     assert parsed["amounts"]["grand_total"]["value"] == "500.00"
+
+def test_indian_country_context_resolves_ocr_noisy_foreign_symbols_to_inr():
+    result = detect_currency("HOTEL BILL Karnataka, India CGST 6% 684.00 Amount Paid €1Z 990.00", "IN")
+    assert result["currency_code"] == "INR"
+    assert result["confidence"] == "medium"
+
+def test_bare_dollar_without_country_is_ambiguous():
+    result = detect_currency("Total $250.00", None)
+    assert result["currency_code"] is None
+    assert result["confidence"] == "ambiguous"
+
+def test_explicit_currency_code_wins():
+    result = detect_currency("Invoice total USD 250.00", None)
+    assert result["currency_code"] == "USD"
+    assert result["confidence"] == "high"
