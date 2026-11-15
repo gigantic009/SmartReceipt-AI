@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, UnidentifiedImageError
 
-from backend.app.database import (save_receipt, list_receipts, get_receipt, update_receipt, delete_receipt, find_duplicate, get_analytics, add_receipt_event, get_receipt_events, create_expense, list_expenses, delete_expense, create_vendor, list_vendors, create_budget, list_budgets)
+from backend.app.database import (save_receipt, list_receipts, get_receipt, update_receipt, delete_receipt, find_duplicate, get_analytics, add_receipt_event, get_receipt_events, create_expense, list_expenses, delete_expense, create_vendor, list_vendors, create_budget, list_budgets, get_budget_status)
 from backend.app.expense_intelligence import suggest_category
 from backend.app.document_ingestion import extract_document_text
 from backend.app.reporting import build_financial_workbook, build_financial_pdf
@@ -458,6 +458,11 @@ def vendor_create(data: dict):
         return create_vendor(data)
     except sqlite3.IntegrityError as error:
         raise HTTPException(status_code=409, detail="A vendor with this name already exists.") from error
+
+
+@app.get("/budgets/status")
+def budgets_status():
+    return {"items": get_budget_status()}
 
 
 @app.get("/budgets")
