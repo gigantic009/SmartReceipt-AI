@@ -136,7 +136,6 @@ async def upload_receipt(file: UploadFile = File(...)):
 
         review_required = (
             global_validation["status"] != "valid"
-            or validation["overall_status"] != "valid"
             or average_confidence is None
             or average_confidence < 85
         )
