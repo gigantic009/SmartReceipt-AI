@@ -33,6 +33,7 @@ The project combines ideas from publicly documented commercial products and open
 ### Expense intelligence
 - Explainable keyword-based category suggestions (Travel, Food & Dining, Groceries, Shopping, Utilities, Healthcare, Office & Software).
 - Manual expense entry, vendor directory and budget records.
+- Bank CSV import and explainable receipt-to-transaction matching with human confirmation.
 - Document correction audit events and currency-safe combined receipt/expense analytics.
 - Category suggestions remain editable and are explicitly low-confidence; this is not a trained machine-learning classifier.
 - Currency-separated spend summaries by currency, category and month. Amounts in different currencies are never added together.
@@ -79,6 +80,14 @@ Interactive API docs: http://127.0.0.1:8000/docs
 - Persistence, library, duplicate lookup and analytics: backend/app/database.py
 - Typed contracts: backend/app/schemas.py
 - React application: frontend/
+
+## Run with Docker Compose
+
+See [DEPLOYMENT.md](DEPLOYMENT.md). From the repository root:
+
+    docker compose up --build
+
+Open http://localhost:8080. The API is available at http://localhost:8000. Docker volumes persist uploaded documents, OCR output and the local database.
 
 ## Run locally on Windows CMD
 
