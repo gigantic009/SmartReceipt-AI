@@ -1,0 +1,14 @@
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.venv
+**/venv
+**/node_modules
+**/dist
+.git
+.gitignore
+.env
+backend/uploads
+backend/ocr_ready
+backend/data
+local_experiments_backup

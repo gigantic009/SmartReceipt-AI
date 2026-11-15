@@ -57,3 +57,147 @@ def test_save_receipt_rejects_duplicate_ids(tmp_path):
     import pytest
     with pytest.raises(sqlite3.IntegrityError):
         save_receipt(**values)
+
+def test_receipt_library_search_update_duplicate_and_analytics(tmp_path):
+    from backend.app.database import (
+        list_receipts, update_receipt, get_receipt, find_duplicate, get_analytics
+    )
+    database_path = tmp_path / "library.sqlite3"
+    save_receipt(
+        receipt_id="library-001",
+        original_filename="hotel.jpg",
+        processed_filename="hotel.png",
+        status="review_required",
+        ocr_text="Hotel total 1200",
+        receipt={"total": "1200"},
+        validation={"overall_status": "review_required"},
+        ocr={"average_confidence": 70},
+        global_document={
+            "merchant_name_candidate": "Sunrise Hotel",
+            "issue_date_raw": "2026-10-16",
+            "currency": {"currency_code": "INR"},
+            "amounts": {"grand_total": {"value": "1200"}},
+            "category": "Travel",
+        },
+        content_sha256="same-image-hash",
+        database_path=database_path,
+    )
+    assert len(list_receipts(search="Sunrise", database_path=database_path)) == 1
+    assert find_duplicate("same-image-hash", database_path=database_path)["receipt_id"] == "library-001"
+    assert update_receipt("library-001", {"merchant_name": "Sunrise Grand Hotel", "category": "Travel"}, database_path)
+    record = get_receipt("library-001", database_path)
+    assert record["merchant_name"] == "Sunrise Grand Hotel"
+    assert record["ocr_text"] == "Hotel total 1200"
+    summary = get_analytics(database_path)
+    assert summary["document_count"] == 1
+    assert summary["spend_by_currency"]["INR"] == 1200.0
+    assert summary["spend_by_category"]["Travel"]["INR"] == 1200.0
+
+
+def test_manual_expense_vendor_budget_and_combined_analytics(tmp_path):
+    from backend.app.database import (
+        create_expense, list_expenses, create_vendor, list_vendors,
+        create_budget, list_budgets, get_analytics,
+    )
+    database_path = tmp_path / "finance.sqlite3"
+    create_expense({
+        "description": "Metro ticket", "amount": "75.50", "currency_code": "INR",
+        "expense_date": "2026-11-16", "category": "Travel",
+    }, database_path)
+    assert len(list_expenses(currency_code="INR", database_path=database_path)) == 1
+    vendor = create_vendor({"name": "City Metro", "default_category": "Travel"}, database_path)
+    assert vendor["name"] == "City Metro"
+    assert list_vendors(database_path)[0]["vendor_id"] == vendor["vendor_id"]
+    budget = create_budget({
+        "name": "Monthly travel", "amount": "2500", "currency_code": "INR",
+        "category": "Travel",
+    }, database_path)
+    assert list_budgets(database_path)[0]["budget_id"] == budget["budget_id"]
+    analytics = get_analytics(database_path)
+    assert analytics["expense_count"] == 1
+    assert analytics["spend_by_currency"]["INR"] == 75.5
+
+
+def test_receipt_correction_creates_audit_event(tmp_path):
+    from backend.app.database import add_receipt_event, get_receipt_events
+    database_path = tmp_path / "audit.sqlite3"
+    add_receipt_event("receipt-42", "fields_corrected", {"category": "Travel"}, database_path)
+    events = get_receipt_events("receipt-42", database_path)
+    assert events[0]["action"] == "fields_corrected"
+    assert events[0]["details"]["category"] == "Travel"
+
+
+def test_budget_status_calculates_currency_and_category_utilization(tmp_path):
+    from datetime import date
+    from backend.app.database import create_expense, create_budget, get_budget_status
+    database_path = tmp_path / "budget.sqlite3"
+    create_expense({
+        "description": "Taxi", "amount": "900", "currency_code": "INR",
+        "expense_date": date.today().isoformat(), "category": "Travel",
+    }, database_path)
+    create_budget({
+        "name": "Travel cap", "amount": "1000", "currency_code": "INR",
+        "category": "Travel", "period": "monthly",
+    }, database_path)
+    status = get_budget_status(as_of=date.today(), database_path=database_path)
+    assert status[0]["spent"] == "900"
+    assert status[0]["remaining"] == "100"
+    assert status[0]["utilization_percent"] == 90.0
+    assert status[0]["status"] == "near_limit"
+
+
+def test_vendor_lookup_is_case_insensitive(tmp_path):
+    from backend.app.database import create_vendor, get_vendor_by_name
+    database_path = tmp_path / "vendors.sqlite3"
+    create_vendor({"name": "Acme Supplies", "default_category": "Office"}, database_path)
+    vendor = get_vendor_by_name("ACME SUPPLIES", database_path)
+    assert vendor["default_category"] == "Office"
+    assert get_vendor_by_name("Unknown Vendor", database_path) is None
+
+
+def test_analytics_never_adds_different_currencies(tmp_path):
+    from backend.app.database import create_expense, get_analytics
+    database_path = tmp_path / "fx.sqlite3"
+    create_expense({"description": "Lunch", "amount": "100", "currency_code": "INR", "category": "Food"}, database_path)
+    create_expense({"description": "Dinner", "amount": "10", "currency_code": "USD", "category": "Food"}, database_path)
+    summary = get_analytics(database_path)
+    assert summary["spend_by_category"]["Food"] == {"INR": 100.0, "USD": 10.0}
+    assert summary["monthly_spend"][summary["monthly_spend"].keys().__iter__().__next__()] == {"INR": 100.0, "USD": 10.0}
+
+
+def test_bank_transaction_import_and_match_storage(tmp_path):
+    from backend.app.database import save_bank_transactions, list_bank_transactions, set_transaction_match
+    database_path = tmp_path / "transactions.sqlite3"
+    count = save_bank_transactions([{
+        "transaction_date": "2026-11-15", "description": "ACME STORE",
+        "merchant_name": "ACME STORE", "amount": "-1250.00",
+        "currency_code": "INR", "reference": "REF-001",
+    }], database_path)
+    assert count == 1
+    transaction = list_bank_transactions(database_path)[0]
+    assert transaction["currency_code"] == "INR"
+    assert set_transaction_match(transaction["transaction_id"], "receipt-1", 0.98, database_path)
+    assert list_bank_transactions(database_path)[0]["matched_receipt_id"] == "receipt-1"
+
+
+def test_existing_database_schema_is_migrated_forward(tmp_path):
+    from backend.app.database import initialize_database
+    database_path = tmp_path / "legacy.sqlite3"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("""
+            CREATE TABLE receipts (
+                receipt_id TEXT PRIMARY KEY,
+                original_filename TEXT NOT NULL,
+                processed_filename TEXT NOT NULL,
+                status TEXT NOT NULL,
+                ocr_text TEXT NOT NULL,
+                receipt_json TEXT NOT NULL,
+                validation_json TEXT NOT NULL,
+                ocr_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+    initialize_database(database_path)
+    with sqlite3.connect(database_path) as connection:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(receipts)")}
+    assert {"global_json", "content_sha256", "merchant_name", "currency_code", "review_notes"} <= columns
