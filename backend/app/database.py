@@ -250,7 +250,7 @@ def find_duplicate(content_sha256: str, database_path: str | Path = DEFAULT_DATA
 
 
 def get_analytics(database_path: str | Path = DEFAULT_DATABASE_PATH) -> dict[str, Any]:
-    """Combine saved-document and manually entered expenses without double counting."""
+    """Aggregate totals without ever mixing amounts from different currencies."""
     initialize_database(database_path)
     with _connect(database_path) as connection:
         receipts = connection.execute(
@@ -260,8 +260,8 @@ def get_analytics(database_path: str | Path = DEFAULT_DATABASE_PATH) -> dict[str
             "SELECT amount, currency_code, category, expense_date, created_at FROM expenses WHERE receipt_id IS NULL"
         ).fetchall()
     totals: dict[str, float] = {}
-    categories: dict[str, float] = {}
-    monthly: dict[str, float] = {}
+    categories: dict[str, dict[str, float]] = {}
+    monthly: dict[str, dict[str, float]] = {}
 
     def accumulate(amount_value, currency_value, category_value, date_value):
         try:
@@ -271,9 +271,11 @@ def get_analytics(database_path: str | Path = DEFAULT_DATABASE_PATH) -> dict[str
         currency = currency_value or "UNRESOLVED"
         totals[currency] = round(totals.get(currency, 0.0) + amount, 2)
         category = category_value or "Uncategorized"
-        categories[category] = round(categories.get(category, 0.0) + amount, 2)
+        categories.setdefault(category, {})
+        categories[category][currency] = round(categories[category].get(currency, 0.0) + amount, 2)
         period = (date_value or "")[:7] or "Unknown"
-        monthly[period] = round(monthly.get(period, 0.0) + amount, 2)
+        monthly.setdefault(period, {})
+        monthly[period][currency] = round(monthly[period].get(currency, 0.0) + amount, 2)
 
     for row in receipts:
         accumulate(row["total_amount"], row["currency_code"], row["category"],
@@ -287,7 +289,7 @@ def get_analytics(database_path: str | Path = DEFAULT_DATABASE_PATH) -> dict[str
         "review_required": sum(1 for row in receipts if row["status"] == "review_required"),
         "spend_by_currency": totals,
         "spend_by_category": categories,
-        "monthly_spend": dict(sorted(monthly.items())),
+        "monthly_spend": monthly,
     }
 
 def add_receipt_event(receipt_id: str, action: str, details: dict[str, Any],
