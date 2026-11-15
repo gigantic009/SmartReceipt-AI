@@ -249,28 +249,41 @@ def find_duplicate(content_sha256: str, database_path: str | Path = DEFAULT_DATA
 
 
 def get_analytics(database_path: str | Path = DEFAULT_DATABASE_PATH) -> dict[str, Any]:
+    """Combine saved-document and manually entered expenses without double counting."""
     initialize_database(database_path)
     with _connect(database_path) as connection:
-        rows = connection.execute(
+        receipts = connection.execute(
             "SELECT total_amount, currency_code, category, status, document_date, created_at FROM receipts"
+        ).fetchall()
+        expenses = connection.execute(
+            "SELECT amount, currency_code, category, expense_date, created_at FROM expenses WHERE receipt_id IS NULL"
         ).fetchall()
     totals: dict[str, float] = {}
     categories: dict[str, float] = {}
     monthly: dict[str, float] = {}
-    for row in rows:
+
+    def accumulate(amount_value, currency_value, category_value, date_value):
         try:
-            amount = float(row["total_amount"]) if row["total_amount"] is not None else 0.0
+            amount = float(amount_value) if amount_value is not None else 0.0
         except (TypeError, ValueError):
             amount = 0.0
-        currency = row["currency_code"] or "UNRESOLVED"
+        currency = currency_value or "UNRESOLVED"
         totals[currency] = round(totals.get(currency, 0.0) + amount, 2)
-        category = row["category"] or "Uncategorized"
+        category = category_value or "Uncategorized"
         categories[category] = round(categories.get(category, 0.0) + amount, 2)
-        period = (row["document_date"] or row["created_at"] or "")[:7] or "Unknown"
+        period = (date_value or "")[:7] or "Unknown"
         monthly[period] = round(monthly.get(period, 0.0) + amount, 2)
+
+    for row in receipts:
+        accumulate(row["total_amount"], row["currency_code"], row["category"],
+                   row["document_date"] or row["created_at"])
+    for row in expenses:
+        accumulate(row["amount"], row["currency_code"], row["category"],
+                   row["expense_date"] or row["created_at"])
     return {
-        "document_count": len(rows),
-        "review_required": sum(1 for row in rows if row["status"] == "review_required"),
+        "document_count": len(receipts),
+        "expense_count": len(expenses),
+        "review_required": sum(1 for row in receipts if row["status"] == "review_required"),
         "spend_by_currency": totals,
         "spend_by_category": categories,
         "monthly_spend": dict(sorted(monthly.items())),
