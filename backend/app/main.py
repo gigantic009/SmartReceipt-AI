@@ -2,6 +2,7 @@ from pathlib import Path
 import uuid
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, UnidentifiedImageError
 
 from backend.app.database import save_receipt
@@ -33,6 +34,14 @@ app = FastAPI(
     title="SmartReceipt AI",
     description="AI-powered receipt scanning and expense management API",
     version="0.3.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
 )
 
 
