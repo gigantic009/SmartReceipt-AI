@@ -110,8 +110,10 @@ def _labeled_amount(lines: list[str], labels: tuple[str, ...]) -> dict[str, Any]
     for line in lines:
         match = pattern.search(line)
         if match:
+            # Use the first amount after the label. A line may contain another
+            # labeled amount later (e.g. Amount Paid ... Total Amount ...).
             values = _amounts(line[match.end():])
-            if values: return {"value": _money(values[-1]), "raw_text": line, "confidence": "candidate"}
+            if values: return {"value": _money(values[0]), "raw_text": line, "confidence": "candidate"}
     return None
 
 def _taxes(lines: list[str]) -> list[dict[str, Any]]:
