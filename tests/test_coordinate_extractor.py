@@ -115,3 +115,45 @@ def test_amount_paid_excludes_nearby_payment_date_row():
     assert result["status"] == "needs_review"
     assert result["proposed_value"] == "12,390.00"
     assert result["value"] is None
+
+
+def test_sgst_crop_accepts_single_high_confidence_token():
+    from backend.app.coordinate_extractor import interpret_sgst_crop_tokens
+
+    result = interpret_sgst_crop_tokens(
+        [{"text": "684.00", "confidence": 92}],
+        label_confidence=86,
+    )
+
+    assert result["status"] == "recognized"
+    assert result["value"] == "684.00"
+    assert result["confidence"] == 92
+
+
+def test_sgst_crop_keeps_low_confidence_token_for_review():
+    from backend.app.coordinate_extractor import interpret_sgst_crop_tokens
+
+    result = interpret_sgst_crop_tokens(
+        [{"text": "684.00", "confidence": 74}],
+        label_confidence=86,
+    )
+
+    assert result["status"] == "needs_review"
+    assert result["value"] is None
+    assert result["proposed_value"] == "684.00"
+
+
+def test_sgst_crop_does_not_join_multiple_tokens():
+    from backend.app.coordinate_extractor import interpret_sgst_crop_tokens
+
+    result = interpret_sgst_crop_tokens(
+        [
+            {"text": "684", "confidence": 92},
+            {"text": "00", "confidence": 92},
+        ],
+        label_confidence=86,
+    )
+
+    assert result["status"] == "multiple_amount_tokens_review"
+    assert result["value"] is None
+    assert len(result["candidates"]) == 2
