@@ -46,6 +46,12 @@ def extract_document_text(data: bytes, filename: str) -> dict:
     elif extension in {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff"}:
         try:
             with Image.open(io.BytesIO(data)) as source:
+                expected = {
+                    ".jpg": {"JPEG"}, ".jpeg": {"JPEG"}, ".png": {"PNG"},
+                    ".webp": {"WEBP"}, ".tif": {"TIFF"}, ".tiff": {"TIFF"},
+                }
+                if source.format not in expected.get(extension, set()):
+                    raise ValueError("The file extension does not match the image content.")
                 width, height = source.size
                 validate_image_dimensions(width, height)
                 if width * height > MAX_IMAGE_PIXELS:
