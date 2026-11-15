@@ -397,6 +397,12 @@ async def upload_batch(files: list[UploadFile] = File(...)):
                 "status": "failed",
                 "error": error.detail,
             })
+        except Exception:
+            results.append({
+                "filename": Path(file.filename or "document").name,
+                "status": "failed",
+                "error": "Unexpected processing error. Check the backend logs.",
+            })
     return {
         "processed": sum(1 for item in results if item.get("receipt_id")),
         "failed": sum(1 for item in results if item.get("status") == "failed"),
