@@ -470,6 +470,62 @@ def interpret_total_amount_crop_tokens(
     }
 
 
+def interpret_round_off_crop_tokens(
+    tokens: list[dict[str, Any]],
+    label_confidence: float,
+) -> dict[str, Any]:
+    """Interpret Round Off crop tokens while preserving an explicit sign."""
+    candidates = []
+    for token in tokens:
+        raw = token["text"].strip()
+        sign = ""
+        unsigned = raw
+        if unsigned.startswith(("+", "-")):
+            sign, unsigned = unsigned[0], unsigned[1:]
+
+        normalized = normalize_amount_token(unsigned)
+        if normalized is not None:
+            candidates.append(
+                {
+                    "raw": raw,
+                    "normalized_candidate": f"{sign}{normalized}",
+                    "confidence": token["confidence"],
+                }
+            )
+
+    if not candidates:
+        return {
+            "field": "round_off",
+            "value": None,
+            "status": "amount_not_found",
+            "label_confidence": label_confidence,
+            "candidates": [],
+        }
+
+    if len(candidates) > 1:
+        return {
+            "field": "round_off",
+            "value": None,
+            "status": "multiple_amount_tokens_review",
+            "label_confidence": label_confidence,
+            "candidates": candidates,
+        }
+
+    candidate = candidates[0]
+    confidence = candidate["confidence"]
+    status = "recognized" if confidence >= 85 else "needs_review"
+    return {
+        "field": "round_off",
+        "value": candidate["normalized_candidate"] if status == "recognized" else None,
+        "proposed_value": candidate["normalized_candidate"],
+        "raw_ocr_token": candidate["raw"],
+        "confidence": confidence,
+        "label_confidence": label_confidence,
+        "status": status,
+        "candidates": candidates,
+    }
+
+
 def extract_total_amount_crop_field(
     image: Any,
     label_words: list[dict[str, Any]],
