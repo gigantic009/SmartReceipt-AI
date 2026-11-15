@@ -57,3 +57,38 @@ def test_save_receipt_rejects_duplicate_ids(tmp_path):
     import pytest
     with pytest.raises(sqlite3.IntegrityError):
         save_receipt(**values)
+
+def test_receipt_library_search_update_duplicate_and_analytics(tmp_path):
+    from backend.app.database import (
+        list_receipts, update_receipt, get_receipt, find_duplicate, get_analytics
+    )
+    database_path = tmp_path / "library.sqlite3"
+    save_receipt(
+        receipt_id="library-001",
+        original_filename="hotel.jpg",
+        processed_filename="hotel.png",
+        status="review_required",
+        ocr_text="Hotel total 1200",
+        receipt={"total": "1200"},
+        validation={"overall_status": "review_required"},
+        ocr={"average_confidence": 70},
+        global_document={
+            "merchant_name_candidate": "Sunrise Hotel",
+            "issue_date_raw": "2026-10-16",
+            "currency": {"currency_code": "INR"},
+            "amounts": {"grand_total": {"value": "1200"}},
+            "category": "Travel",
+        },
+        content_sha256="same-image-hash",
+        database_path=database_path,
+    )
+    assert len(list_receipts(search="Sunrise", database_path=database_path)) == 1
+    assert find_duplicate("same-image-hash", database_path=database_path)["receipt_id"] == "library-001"
+    assert update_receipt("library-001", {"merchant_name": "Sunrise Grand Hotel", "category": "Travel"}, database_path)
+    record = get_receipt("library-001", database_path)
+    assert record["merchant_name"] == "Sunrise Grand Hotel"
+    assert record["ocr_text"] == "Hotel total 1200"
+    summary = get_analytics(database_path)
+    assert summary["document_count"] == 1
+    assert summary["spend_by_currency"]["INR"] == 1200.0
+    assert summary["spend_by_category"]["Travel"] == 1200.0
