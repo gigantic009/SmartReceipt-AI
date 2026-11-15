@@ -15,3 +15,6 @@
 .report-links{display:flex;gap:8px;flex-wrap:wrap}.report-links a{align-items:center}
 
 .budget-meter{flex:1;min-width:120px}.budget-meter>div:first-child{display:flex;justify-content:space-between;font-size:9px;color:#718096}.budget-track{height:6px;background:#edf0f5;border-radius:8px;margin:6px 0;overflow:hidden}.budget-track i{display:block;height:100%;background:#6885dc;border-radius:8px}.budget-meter small{font-size:9px;color:#98a3b2}
+
+.selectable-row{cursor:pointer}.selectable-row:hover{background:#f6f8fd}.review-editor{margin-top:16px;border:1px solid #e3e9f2;border-radius:10px;padding:16px;background:#fbfcfe}.review-editor h3{font:700 13px Manrope;margin:0 0 4px}.review-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}.review-fields label{display:flex;flex-direction:column;gap:5px;font-size:10px;color:#69778c}.review-fields input{height:34px;border:1px solid #dfe5ee;border-radius:7px;padding:0 9px;font:inherit;font-size:11px}.review-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}.danger-button{border:1px solid #efd9dc;background:#fff8f8;color:#a54c57;border-radius:8px;padding:8px 11px;font-size:10px}
+@media(max-width:650px){.review-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
