@@ -12,13 +12,8 @@ def test_bank_csv_import_supports_debit_amount_and_currency(monkeypatch):
         return len(records)
     monkeypatch.setattr(main, "save_bank_transactions", fake_save)
     payload = (
-        "Transaction Date,Description,Debit Amount,Credit Amount,Currency Code,Reference\n"
-        "2026-11-15,ACME STORE,1,250.00,,INR,REF-1\n"
-    )
-    # Use a simpler header shape with a single debit amount column.
-    payload = (
         "Transaction Date,Description,Debit Amount,Currency Code,Reference\n"
-        "2026-11-15,ACME STORE,1,250.00,INR,REF-1\n"
+        "2026-11-15,ACME STORE,\"1,250.00\",INR,REF-1\n"
     )
     upload = UploadFile(file=BytesIO(payload.encode()), filename="statement.csv")
     result = asyncio.run(main.import_transactions_csv(upload))
