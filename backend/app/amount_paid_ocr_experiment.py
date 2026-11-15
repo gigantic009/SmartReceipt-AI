@@ -16,13 +16,14 @@ from pytesseract import Output
 from backend.app.coordinate_extractor import configure_tesseract
 
 
-# Candidate coordinates for the original 500x333 sample receipt.
-# The printed amount starts near x=86, y=267. Compare retaining and
-# excluding the noisy leading marker while keeping the full amount visible.
+# Coordinates are for the original 500x333 sample receipt.
+# The receipt crop review showed a noisy currency marker immediately before
+# the amount. These candidates progressively move the left edge rightward.
 CROPS = {
-    "wide_context": (72, 254, 175, 281),
-    "with_leading_marker": (78, 258, 170, 278),
-    "amount_only": (88, 258, 170, 278),
+    "retain_marker": (84, 258, 175, 279),
+    "trim_marker_lightly": (90, 258, 175, 279),
+    "trim_marker_more": (94, 258, 175, 279),
+    "digits_region": (98, 258, 175, 279),
 }
 PSM_MODES = (6, 7, 8, 13)
 SCALES = (2, 3, 4, 5)
@@ -99,6 +100,7 @@ def run_experiment(image_path: Path) -> None:
     print(f"Image dimensions: {image.shape[1]} x {image.shape[0]}")
     print("Diagnostic only: no OCR value is automatically accepted.")
     print("Numeric whitelist: digits, comma and decimal point only.")
+    print("Crop variants progressively exclude the leading currency marker.")
 
     results = []
 
