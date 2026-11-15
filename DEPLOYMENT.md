@@ -1,35 +1,85 @@
-# SmartReceipt AI deployment
+# Deployment and operations
 
-## Local development
+SmartReceipt AI is designed for **local-first evaluation and single-user demonstration**. The included Docker Compose stack makes it easy to run consistently. It is not a hardened internet-facing service.
 
-Follow the Windows CMD setup in README.md. Tesseract must be installed locally and its language packs must match TESSERACT_LANGUAGES.
+## 1. Local Docker deployment
 
-## Docker Compose
+Requirements: Docker Desktop/Engine and Docker Compose v2.
 
-Requirements: Docker Engine and the Docker Compose plugin.
+```bash
+docker compose up --build -d
+docker compose ps
+```
 
-From the repository root:
-
-    docker compose up --build
-
+Open:
 - Frontend: http://localhost:8080
-- API: http://localhost:8000
+- Backend health: http://localhost:8000/health
 - API documentation: http://localhost:8000/docs
 
-Stop the stack:
+Follow logs:
 
-    docker compose down
+```bash
+docker compose logs -f --tail=100
+```
 
-Persistent named volumes hold uploads, OCR-ready files and the SQLite database. To remove the stored data as well, run:
+Stop without deleting data:
 
-    docker compose down -v
+```bash
+docker compose down
+```
 
-That command permanently deletes the named volumes. Export anything you need first.
+Delete containers and persistent data (irreversible):
 
-## Configuration
+```bash
+docker compose down -v
+```
 
-The compose file defaults to English Tesseract OCR and disables optional local AI enrichment. The Ollama integration is intentionally not wired into the container by default. Configure it only after arranging a secure local-network connection and understanding where receipt text is processed.
+## 2. Persistent data and backups
 
-## Production deployment boundary
+Compose creates named volumes for:
+- `smartreceipt_data` — SQLite database
+- `smartreceipt_uploads` — original uploaded files
+- `smartreceipt_ocr` — OCR working files
 
-This compose stack is for local evaluation, not a hardened public deployment. Before exposing it to the internet, implement authentication and per-user authorization, encrypted storage and transport, secure secret management, malware scanning, retention/deletion policy, backups, rate limits, audit controls, monitoring and a managed database/object store. Do not publish real financial documents in a public repository.
+Back up the database and document volume together while the application is stopped or using a consistent SQLite backup procedure. Restrict backup access because these files may contain sensitive financial information. Test restoration before relying on a backup.
+
+## 3. Environment configuration
+
+The default setup uses English Tesseract OCR and disables optional local AI. Copy `.env.example` to `.env` for local non-container development. Never commit real secrets or private data.
+
+Optional Ollama enrichment is disabled by default and is not needed for the application to work. Do not expose the Ollama port publicly.
+
+## 4. Pre-deployment checklist for a public server
+
+Do not expose the current stack directly to the public internet. Complete and verify these items first:
+
+- [ ] Authentication with secure session/token handling.
+- [ ] Authorization and strict per-user data isolation on every API route.
+- [ ] HTTPS termination, secure headers and trusted proxy configuration.
+- [ ] Restrictive CORS and origin/CSRF protections suitable for the chosen auth model.
+- [ ] Rate limits, request timeouts and upload quotas.
+- [ ] Malware/content scanning and robust file lifecycle controls.
+- [ ] Encryption at rest and encrypted, tested backups.
+- [ ] Secret management outside source control and container images.
+- [ ] Retention, export and deletion policies for uploaded financial records.
+- [ ] Audit logging that avoids leaking sensitive OCR contents.
+- [ ] Monitoring, alerting, dependency scanning and incident response.
+- [ ] Production database and object-storage design with migration/restore testing.
+- [ ] Load, concurrency and failure-recovery tests.
+
+## 5. Suggested production architecture (future work)
+
+For a multi-user deployment, place a TLS reverse proxy in front of the frontend and API; add an identity layer and per-user authorization; move from local SQLite/filesystem storage to a managed relational database and private object storage; and run OCR in isolated background workers with queue limits. Keep uploaded files private and short-lived where possible.
+
+## 6. Verification
+
+Before a release candidate:
+1. Run the backend pytest suite.
+2. Build the frontend with `npm run build`.
+3. Build both Docker images.
+4. Test upload, correction, deletion, exports and transaction matching with synthetic documents.
+5. Restart the stack and confirm the database and files persist.
+6. Restore a backup into a clean environment and verify the result.
+7. Check logs for errors and ensure no private OCR text or credentials are emitted.
+
+A successful local Docker build is a packaging check, not a production security certification.
