@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, UnidentifiedImageError
 
-from backend.app.database import (save_receipt, list_receipts, get_receipt, update_receipt, delete_receipt, find_duplicate, get_analytics, add_receipt_event, get_receipt_events, create_expense, list_expenses, delete_expense, create_vendor, list_vendors, create_budget, list_budgets, get_budget_status)
+from backend.app.database import (save_receipt, list_receipts, get_receipt, update_receipt, delete_receipt, find_duplicate, get_analytics, add_receipt_event, get_receipt_events, create_expense, list_expenses, delete_expense, create_vendor, list_vendors, create_budget, list_budgets, get_budget_status, get_vendor_by_name)
 from backend.app.expense_intelligence import suggest_category
 from backend.app.ai_enrichment import enrich_with_local_model
 from backend.app.document_ingestion import extract_document_text
@@ -67,6 +67,14 @@ def home():
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+
+def _suggest_document_category(document: dict, ocr_text: str) -> dict:
+    merchant = document.get("merchant_name_candidate")
+    vendor = get_vendor_by_name(merchant)
+    if vendor and vendor.get("default_category"):
+        return {"category": vendor["default_category"], "confidence": "medium", "method": "vendor_rule", "vendor_id": vendor["vendor_id"]}
+    return suggest_category(merchant, ocr_text)
 
 
 @app.post("/upload-receipt")
@@ -145,7 +153,7 @@ async def upload_receipt(file: UploadFile = File(...)):
         global_document = parse_global_document(ocr_text)
         global_document = enrich_with_local_model(global_document, ocr_text)
         global_validation = validate_global_document(global_document)
-        category = suggest_category(global_document.get("merchant_name_candidate"), ocr_text)
+        category = _suggest_document_category(global_document, ocr_text)
         global_document["category"] = category["category"]
         global_document["category_suggestion"] = category
         duplicate = find_duplicate(digest.hexdigest())
@@ -337,7 +345,7 @@ async def _process_document_upload(file: UploadFile) -> dict:
             {"page": p["page"], "method": p["method"], "text_length": len(p["text"])}
             for p in extraction["pages"]
         ]
-        category = suggest_category(document.get("merchant_name_candidate"), ocr_text)
+        category = _suggest_document_category(document, ocr_text)
         document["category"] = category["category"]
         document["category_suggestion"] = category
         validation = validate_global_document(document)
