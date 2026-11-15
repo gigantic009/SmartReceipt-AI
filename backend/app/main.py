@@ -14,6 +14,7 @@ from backend.app.image_processor import (
 )
 from backend.app.ocr_engine import extract_text, extract_text_with_confidence
 from backend.app.receipt_parser import parse_receipt, validate_parsed_receipt
+from backend.app.global_billing import parse_global_document, validate_global_document
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -119,6 +120,8 @@ async def upload_receipt(file: UploadFile = File(...)):
 
         parsed_receipt = parse_receipt(ocr_text)
         validation = validate_parsed_receipt(parsed_receipt)
+        global_document = parse_global_document(ocr_text)
+        global_validation = validate_global_document(global_document)
 
         confidence_items = extract_text_with_confidence(processed_path)
         average_confidence = (
@@ -132,7 +135,8 @@ async def upload_receipt(file: UploadFile = File(...)):
         )
 
         review_required = (
-            validation["overall_status"] != "valid"
+            global_validation["status"] != "valid"
+            or validation["overall_status"] != "valid"
             or average_confidence is None
             or average_confidence < 85
         )
@@ -162,6 +166,8 @@ async def upload_receipt(file: UploadFile = File(...)):
             "processed_filename": processed_path.name,
             "ocr_text": ocr_text,
             "receipt": parsed_receipt,
+            "global": global_document,
+            "global_validation": global_validation,
             "validation": validation,
             "ocr": ocr_summary
         }
