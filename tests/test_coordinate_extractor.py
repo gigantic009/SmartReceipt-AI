@@ -97,3 +97,21 @@ def test_missing_label_is_reported():
     result = extract_field([word("Subtotal", 10)], "sgst")
     assert result["status"] == "label_not_found"
     assert result["value"] is None
+
+
+
+def test_amount_paid_excludes_nearby_payment_date_row():
+    words = [
+        word("Amount", 20, 261, width=28, height=8, confidence=93),
+        word("Paid", 50, 261, width=20, height=8, confidence=74),
+        word("@12,390.00", 86, 263, width=55, height=8, confidence=28),
+        word("1S", 86, 253, width=10, height=8, confidence=15),
+        word("Oct", 96, 253, width=12, height=8, confidence=15),
+        word("2026", 108, 253, width=25, height=8, confidence=40),
+    ]
+
+    result = extract_field(words, "amount_paid")
+
+    assert result["status"] == "needs_review"
+    assert result["proposed_value"] == "12,390.00"
+    assert result["value"] is None
