@@ -163,3 +163,18 @@ def test_analytics_never_adds_different_currencies(tmp_path):
     summary = get_analytics(database_path)
     assert summary["spend_by_category"]["Food"] == {"INR": 100.0, "USD": 10.0}
     assert summary["monthly_spend"][summary["monthly_spend"].keys().__iter__().__next__()] == {"INR": 100.0, "USD": 10.0}
+
+
+def test_bank_transaction_import_and_match_storage(tmp_path):
+    from backend.app.database import save_bank_transactions, list_bank_transactions, set_transaction_match
+    database_path = tmp_path / "transactions.sqlite3"
+    count = save_bank_transactions([{
+        "transaction_date": "2026-11-15", "description": "ACME STORE",
+        "merchant_name": "ACME STORE", "amount": "-1250.00",
+        "currency_code": "INR", "reference": "REF-001",
+    }], database_path)
+    assert count == 1
+    transaction = list_bank_transactions(database_path)[0]
+    assert transaction["currency_code"] == "INR"
+    assert set_transaction_match(transaction["transaction_id"], "receipt-1", 0.98, database_path)
+    assert list_bank_transactions(database_path)[0]["matched_receipt_id"] == "receipt-1"
