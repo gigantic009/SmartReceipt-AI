@@ -3,13 +3,16 @@ import uuid
 import hashlib
 import csv
 import io
+import re
+import sqlite3
+from decimal import Decimal, InvalidOperation
 
 from fastapi import FastAPI, File, HTTPException, UploadFile, Query
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, UnidentifiedImageError
 
-from backend.app.database import (save_receipt, list_receipts, get_receipt, update_receipt, delete_receipt, find_duplicate, get_analytics)
+from backend.app.database import (save_receipt, list_receipts, get_receipt, update_receipt, delete_receipt, find_duplicate, get_analytics, add_receipt_event, get_receipt_events, create_expense, list_expenses, delete_expense, create_vendor, list_vendors, create_budget, list_budgets)
 from backend.app.expense_intelligence import suggest_category
 from backend.app.document_ingestion import extract_document_text
 from backend.app.image_security import validate_image_dimensions
@@ -245,15 +248,24 @@ def receipt_update(receipt_id: str, fields: dict):
         raise HTTPException(status_code=400, detail="Only supported review fields may be updated.")
     if "status" in fields and fields["status"] not in {"review_required", "success"}:
         raise HTTPException(status_code=400, detail="Invalid receipt status.")
-    if not update_receipt(receipt_id, fields):
+    before = get_receipt(receipt_id)
+    if before is None or not update_receipt(receipt_id, fields):
         raise HTTPException(status_code=404, detail="Receipt not found or no supported fields supplied.")
+    add_receipt_event(receipt_id, "fields_corrected", {"before": {k: before.get(k) for k in fields}, "after": fields})
     return get_receipt(receipt_id)
 
 
 @app.delete("/receipts/{receipt_id}")
 def receipt_delete(receipt_id: str):
-    if not delete_receipt(receipt_id):
+    record = get_receipt(receipt_id)
+    if record is None:
         raise HTTPException(status_code=404, detail="Receipt not found.")
+    add_receipt_event(receipt_id, "document_deleted", {"filename": record.get("original_filename")})
+    delete_receipt(receipt_id)
+    for folder, key in ((UPLOAD_DIR, "original_filename"), (OCR_READY_DIR, "processed_filename")):
+        filename = Path(record.get(key) or "").name
+        if filename:
+            (folder / filename).unlink(missing_ok=True)
     return {"deleted": True, "receipt_id": receipt_id}
 
 
@@ -389,4 +401,83 @@ async def upload_batch(files: list[UploadFile] = File(...)):
         "failed": sum(1 for item in results if item.get("status") == "failed"),
         "items": results,
     }
+
+@app.get("/receipts/{receipt_id}/events")
+def receipt_events(receipt_id: str):
+    if get_receipt(receipt_id) is None:
+        raise HTTPException(status_code=404, detail="Receipt not found.")
+    return {"items": get_receipt_events(receipt_id)}
+
+
+@app.get("/expenses")
+def expenses_list(currency_code: str | None = None, category: str | None = None):
+    return {"items": list_expenses(currency_code=currency_code, category=category)}
+
+
+@app.post("/expenses")
+def expense_create(data: dict):
+    required = {"description", "amount", "currency_code"}
+    if not required.issubset(data):
+        raise HTTPException(status_code=400, detail="description, amount and currency_code are required.")
+    try:
+        amount = Decimal(str(data["amount"]))
+    except (InvalidOperation, ValueError):
+        raise HTTPException(status_code=400, detail="amount must be a valid decimal number.")
+    if not amount.is_finite() or amount <= 0:
+        raise HTTPException(status_code=400, detail="amount must be greater than zero.")
+    currency = str(data["currency_code"]).upper()
+    if not re.fullmatch(r"[A-Z]{3}", currency):
+        raise HTTPException(status_code=400, detail="currency_code must be a three-letter currency code.")
+    if not str(data["description"]).strip():
+        raise HTTPException(status_code=400, detail="description cannot be empty.")
+    normalized = {**data, "amount": format(amount, "f"), "currency_code": currency}
+    try:
+        return create_expense(normalized)
+    except sqlite3.IntegrityError as error:
+        raise HTTPException(status_code=409, detail="Expense could not be saved.") from error
+
+
+@app.delete("/expenses/{expense_id}")
+def expense_delete(expense_id: str):
+    if not delete_expense(expense_id):
+        raise HTTPException(status_code=404, detail="Expense not found.")
+    return {"deleted": True, "expense_id": expense_id}
+
+
+@app.get("/vendors")
+def vendors_list():
+    return {"items": list_vendors()}
+
+
+@app.post("/vendors")
+def vendor_create(data: dict):
+    if not str(data.get("name", "")).strip():
+        raise HTTPException(status_code=400, detail="Vendor name is required.")
+    try:
+        return create_vendor(data)
+    except sqlite3.IntegrityError as error:
+        raise HTTPException(status_code=409, detail="A vendor with this name already exists.") from error
+
+
+@app.get("/budgets")
+def budgets_list():
+    return {"items": list_budgets()}
+
+
+@app.post("/budgets")
+def budget_create(data: dict):
+    if not str(data.get("name", "")).strip() or not data.get("currency_code") or data.get("amount") is None:
+        raise HTTPException(status_code=400, detail="name, amount and currency_code are required.")
+    try:
+        amount = Decimal(str(data["amount"]))
+    except (InvalidOperation, ValueError):
+        raise HTTPException(status_code=400, detail="amount must be a valid decimal number.")
+    if not amount.is_finite() or amount <= 0:
+        raise HTTPException(status_code=400, detail="amount must be greater than zero.")
+    currency = str(data["currency_code"]).upper()
+    if not re.fullmatch(r"[A-Z]{3}", currency):
+        raise HTTPException(status_code=400, detail="currency_code must be a three-letter currency code.")
+    if data.get("period", "monthly") not in {"weekly", "monthly", "quarterly", "yearly"}:
+        raise HTTPException(status_code=400, detail="period must be weekly, monthly, quarterly or yearly.")
+    return create_budget({**data, "amount": format(amount, "f"), "currency_code": currency})
 
