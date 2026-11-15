@@ -178,3 +178,26 @@ def test_bank_transaction_import_and_match_storage(tmp_path):
     assert transaction["currency_code"] == "INR"
     assert set_transaction_match(transaction["transaction_id"], "receipt-1", 0.98, database_path)
     assert list_bank_transactions(database_path)[0]["matched_receipt_id"] == "receipt-1"
+
+
+def test_existing_database_schema_is_migrated_forward(tmp_path):
+    from backend.app.database import initialize_database
+    database_path = tmp_path / "legacy.sqlite3"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute("""
+            CREATE TABLE receipts (
+                receipt_id TEXT PRIMARY KEY,
+                original_filename TEXT NOT NULL,
+                processed_filename TEXT NOT NULL,
+                status TEXT NOT NULL,
+                ocr_text TEXT NOT NULL,
+                receipt_json TEXT NOT NULL,
+                validation_json TEXT NOT NULL,
+                ocr_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+    initialize_database(database_path)
+    with sqlite3.connect(database_path) as connection:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(receipts)")}
+    assert {"global_json", "content_sha256", "merchant_name", "currency_code", "review_notes"} <= columns
