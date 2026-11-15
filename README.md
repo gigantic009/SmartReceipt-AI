@@ -1,126 +1,74 @@
-# SmartReceipt AI
+# SmartReceipt AI — Global Billing Intelligence
 
-An AI-powered receipt scanner that extracts structured information from receipt images using OCR, normalizes financial data, and validates transactions.
+SmartReceipt AI is evolving from a fixed-format receipt parser into a country-aware document extraction platform. It aims to read receipts, invoices, hotel folios, restaurant bills, credit notes and other billing documents, then normalize evidence-backed information into a common representation.
 
-## Current MVP features
+## Current development foundation
 
-- JPEG and PNG receipt upload (maximum 10 MB, 25 million pixels, and 12,000 pixels per dimension)
-- Image dimension checks to reduce decompression-bomb and oversized-image risks
-- Image-content verification and preprocessing with OpenCV
-- OCR using Tesseract
-- Receipt field extraction across common invoice label variations (bill/invoice number, date, guest/customer, tax, total, and payment labels)
-- Local SQLite persistence for OCR text, parsed receipt fields, validation results, and confidence metadata
-- Preservation of raw OCR amounts alongside normalized values
-- Conservative handling of missing fields: uncertain values are left blank and sent for human review
-- Tax-total and payment reconciliation
-- OCR confidence summary and review-required status
-- Automated unit tests for parsing, normalization, and validation
+- Existing FastAPI, OpenCV, Tesseract and SQLite processing pipeline retained.
+- Universal global document interpretation is added alongside the legacy parser.
+- Dynamic tax entries preserve original labels rather than requiring CGST/SGST.
+- Country and currency detection return confidence and evidence.
+- Financial reconciliation runs only when the required extracted values exist.
+- React/Vite frontend provides upload, extraction overview, tax breakdown, warnings and JSON export.
+- Regression tests cover Indian GST, a US hotel occupancy-tax invoice, Japanese billing clues and ambiguous currency symbols.
+
+This is a foundation, not complete worldwide coverage or tax-law certification. Country detection is heuristic. Reliable line-item extraction, multilingual OCR, jurisdictional rule packs, date normalization, official registration verification and review editing remain future work.
+
+## Architecture
+
+- OCR: existing FastAPI/Tesseract/OpenCV pipeline.
+- Universal interpretation: backend/app/global_billing.py.
+- Locale hints: backend/app/locale_registry.py.
+- Typed contracts: backend/app/schemas.py.
+- Frontend: React + Vite in frontend/.
+- Persistence: existing local SQLite storage.
+
+The original OCR coordinate experiments remain sample-specific and separate from global parsing.
 
 ## Requirements
 
-- Python 3.10 or newer
-- Tesseract OCR with the English language data installed
-- Python dependencies from `requirements.txt`
+- Python 3.10+
+- Tesseract OCR and appropriate language packs
+- Node.js 20+ and npm
+- Python packages from requirements.txt
 
-### Install Tesseract
+## Start backend (Windows CMD)
 
-Install Tesseract OCR for your operating system.
+From the repository root:
 
-On Windows, the default installer location is:
-
-```text
-C:\Program Files\Tesseract-OCR\tesseract.exe
-```
-
-If Tesseract is installed elsewhere or is not on PATH, set `TESSERACT_CMD` to its executable path.
-
-Windows CMD example:
-
-```cmd
-set TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe
-```
-
-Linux/macOS: ensure the `tesseract` executable is available on PATH, or set `TESSERACT_CMD`.
-
-## Setup
-
-Run commands from the repository root.
-
-### Windows CMD
-
-```cmd
+\`\`\`cmd
 python -m venv .venv
-.venv\Scripts\activate
-python -m pip install --upgrade pip
+.venv\\Scripts\\activate
 python -m pip install -r requirements.txt
-```
-
-### Start the API
-
-```cmd
 uvicorn backend.app.main:app --reload
-```
+\`\`\`
 
-Open the interactive API documentation at:
+API documentation: http://127.0.0.1:8000/docs
 
-- http://127.0.0.1:8000/docs
+## Start frontend (Windows CMD)
 
-Health check:
+Open a second CMD window:
 
-- http://127.0.0.1:8000/health
+\`\`\`cmd
+cd /d path\\to\\SmartReceipt-AI\\frontend
+npm install
+npm run dev
+\`\`\`
+
+Open http://localhost:5173. By default, the frontend calls http://127.0.0.1:8000. Set VITE_API_URL in frontend/.env to override the API URL.
 
 ## Run tests
 
-```cmd
+\`\`\`cmd
 python -m pytest -q
-```
+\`\`\`
 
-## API endpoint
+## Universal document contract
 
-### `POST /upload-receipt`
+The global extraction object includes document type and identifier, country and currency decisions with confidence/evidence, dynamic taxes[], optional monetary fields, line-item and payment collections, source OCR text and extraction warnings. Missing fields are not fabricated. A currency symbol such as $ or ¥ may be ambiguous and should be reviewed when evidence is insufficient.
 
-Send a multipart form request with the image in a field named `file`.
+## Safety and production readiness
 
-The response includes:
+The current API stores uploaded documents and OCR text locally. Authentication, per-user authorization, encrypted storage, retention/deletion controls and production-grade secret management are not yet implemented. Do not expose this prototype publicly with real personal or financial documents until these controls are implemented.
 
-- Receipt identifier and stored filenames
-- Raw OCR text
-- Extracted and normalized receipt fields
-- Financial validation results
-- Average OCR confidence and review status
-
-A receipt marked `review_required` should be checked by a person. OCR output is not guaranteed to be correct, and the application does not silently infer missing financial values.
-
-## Project structure
-
-```text
-backend/
-  app/
-    database.py
-    image_processor.py
-    image_security.py
-    main.py
-    ocr_corrector.py
-    ocr_engine.py
-    receipt_parser.py
-    validate_receipt.py
-  data/          # local SQLite database; ignored by Git
-  uploads/       # generated uploads; ignored by Git
-  ocr_ready/     # generated processed images; ignored by Git
-tests/
-requirements.txt
-```
-
-## Current limitations
-
-- Receipt extraction is still rule-based. It recognizes several common label variations, but complex tables, unusual layouts, poor image quality, and OCR mistakes can still require manual review.
-- The parser does not infer missing subtotal/tax/payment values from line items. This is intentional to avoid fabricating financial data.
-- The current OCR pipeline uses English Tesseract and a single page-segmentation mode; multilingual receipts and difficult layouts need further evaluation.
-- Receipt records are persisted locally in `backend/data/receipts.sqlite3`; the database is ignored by Git because it may contain personal and financial information.
-- There are not yet authenticated receipt-history endpoints or user-level data isolation.
-- The API currently returns OCR and parsed data directly; a frontend and authentication are planned.
-- Human review is required for low-confidence or financially inconsistent results.
-
-## Privacy and security
-
-Do not commit real receipts, personal data, API keys, local database files, or environment secrets. Generated upload, preprocessing, and database directories are excluded by `.gitignore`. The current local SQLite database is not encrypted and must not be used for sensitive production data. Before deployment, add authentication, per-user authorization, retention/deletion controls, encrypted storage, and secure backups.
+Country adapters are interpretation aids, not legal advice or tax-compliance certification. Tax rules must be versioned, sourced from official authorities, reviewed by qualified specialists and tested by jurisdiction before being used for compliance decisions.
