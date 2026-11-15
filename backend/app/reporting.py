@@ -14,25 +14,31 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from backend.app.database import list_receipts, list_expenses, get_analytics
 
 
+def _safe_cell(value):
+    if isinstance(value, str) and value.startswith(("=", "+", "-", "@", "\t", "\r")):
+        return "'" + value
+    return value
+
+
 def build_financial_workbook() -> bytes:
     workbook = Workbook()
     documents = workbook.active
     documents.title = "Documents"
     documents.append(["Document ID", "Merchant", "Date", "Total", "Currency", "Category", "Status", "Filename"])
     for record in list_receipts(limit=500):
-        documents.append([
+        documents.append([_safe_cell(value) for value in [
             record.get("receipt_id"), record.get("merchant_name"), record.get("document_date"),
             record.get("total_amount"), record.get("currency_code"), record.get("category"),
             record.get("status"), record.get("original_filename"),
-        ])
+        ]])
     expenses = workbook.create_sheet("Expenses")
     expenses.append(["Expense ID", "Description", "Merchant", "Date", "Amount", "Currency", "Category", "Payment Method", "Notes"])
     for record in list_expenses():
-        expenses.append([
+        expenses.append([_safe_cell(value) for value in [
             record.get("expense_id"), record.get("description"), record.get("merchant_name"),
             record.get("expense_date"), record.get("amount"), record.get("currency_code"),
             record.get("category"), record.get("payment_method"), record.get("notes"),
-        ])
+        ]])
     summary = workbook.create_sheet("Summary")
     analytics = get_analytics()
     summary.append(["Metric", "Value"])
@@ -46,7 +52,7 @@ def build_financial_workbook() -> bytes:
     summary.append([])
     summary.append(["Spend by category", "Amount (currencies not converted)"])
     for category, amount in sorted(analytics["spend_by_category"].items()):
-        summary.append([category, amount])
+        summary.append([_safe_cell(category), amount])
     for sheet in workbook.worksheets:
         sheet.freeze_panes = "A2"
         sheet.auto_filter.ref = sheet.dimensions
