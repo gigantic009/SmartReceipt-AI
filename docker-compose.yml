@@ -1,0 +1,35 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smartreceipt-api
+    ports:
+      - "8000:8000"
+    environment:
+      TESSERACT_CMD: /usr/bin/tesseract
+      TESSERACT_LANGUAGES: eng
+      SMARTRECEIPT_AI_PROVIDER: disabled
+    volumes:
+      - smartreceipt_uploads:/app/backend/uploads
+      - smartreceipt_ocr:/app/backend/ocr_ready
+      - smartreceipt_data:/app/backend/data
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://localhost:8000
+    container_name: smartreceipt-web
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  smartreceipt_uploads:
+  smartreceipt_ocr:
+  smartreceipt_data:
