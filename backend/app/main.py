@@ -286,7 +286,12 @@ def export_receipts_csv():
     writer = csv.DictWriter(output, fieldnames=fields, extrasaction="ignore")
     writer.writeheader()
     for record in records:
-        writer.writerow(record)
+        safe_record = {}
+        for key, value in record.items():
+            if key in fields and isinstance(value, str) and value.startswith(("=", "+", "-", "@", "\t", "\r")):
+                value = "'" + value
+            safe_record[key] = value
+        writer.writerow(safe_record)
     output.seek(0)
     return StreamingResponse(
         iter([output.getvalue()]),
