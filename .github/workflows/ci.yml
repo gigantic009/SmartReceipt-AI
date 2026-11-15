@@ -1,0 +1,33 @@
+name: SmartReceipt AI CI
+
+on:
+  push:
+    branches: [main, "chore/**"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install Tesseract OCR
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes tesseract-ocr
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+      - name: Run tests
+        run: python -m pytest -q
