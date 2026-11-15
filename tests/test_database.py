@@ -125,3 +125,22 @@ def test_receipt_correction_creates_audit_event(tmp_path):
     events = get_receipt_events("receipt-42", database_path)
     assert events[0]["action"] == "fields_corrected"
     assert events[0]["details"]["category"] == "Travel"
+
+
+def test_budget_status_calculates_currency_and_category_utilization(tmp_path):
+    from datetime import date
+    from backend.app.database import create_expense, create_budget, get_budget_status
+    database_path = tmp_path / "budget.sqlite3"
+    create_expense({
+        "description": "Taxi", "amount": "900", "currency_code": "INR",
+        "expense_date": date.today().isoformat(), "category": "Travel",
+    }, database_path)
+    create_budget({
+        "name": "Travel cap", "amount": "1000", "currency_code": "INR",
+        "category": "Travel", "period": "monthly",
+    }, database_path)
+    status = get_budget_status(as_of=date.today(), database_path=database_path)
+    assert status[0]["spent"] == "900"
+    assert status[0]["remaining"] == "100"
+    assert status[0]["utilization_percent"] == 90.0
+    assert status[0]["status"] == "near_limit"
