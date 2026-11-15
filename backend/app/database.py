@@ -133,7 +133,7 @@ def save_receipt(*, receipt_id: str, original_filename: str, processed_filename:
             json.dumps(validation, ensure_ascii=False),
             json.dumps(ocr, ensure_ascii=False), created_at,
             json.dumps(document, ensure_ascii=False), content_sha256,
-            document.get("merchant_name_candidate"), document.get("issue_date_raw"),
+            document.get("merchant_name_candidate"), (document.get("issue_date") or {}).get("value") or document.get("issue_date_raw"),
             str(total) if total is not None else None,
             document.get("currency", {}).get("currency_code"),
             document.get("category"),
