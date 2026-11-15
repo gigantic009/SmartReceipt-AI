@@ -187,7 +187,7 @@ def parse_global_document(text: str) -> dict[str, Any]:
         "taxes": taxes, "line_items": extract_line_items(text), "payments": _payments(lines), "source_text": text,
         "extraction_warnings": [
             "Line-item rows are heuristic candidates; verify each description and amount.",
-            "Ambiguous date formats are left unnormalized when locale evidence is insufficient." if issue_date.get("ambiguous") else "",
+            *(["Ambiguous date formats are left unnormalized when locale evidence is insufficient."] if issue_date.get("ambiguous") else []),
             "Country and currency detection are heuristic; review medium, ambiguous or unknown results.",
             "Tax extraction is not tax-compliance verification."
         ]}
