@@ -54,6 +54,55 @@ def initialize_database(database_path: str | Path = DEFAULT_DATABASE_PATH) -> No
         connection.execute("CREATE INDEX IF NOT EXISTS idx_receipts_created_at ON receipts(created_at)")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_receipts_sha256 ON receipts(content_sha256)")
         connection.execute("CREATE INDEX IF NOT EXISTS idx_receipts_merchant ON receipts(merchant_name)")
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS receipt_events (
+                event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                receipt_id TEXT NOT NULL,
+                action TEXT NOT NULL,
+                details_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS expenses (
+                expense_id TEXT PRIMARY KEY,
+                description TEXT NOT NULL,
+                merchant_name TEXT,
+                amount TEXT NOT NULL,
+                currency_code TEXT NOT NULL,
+                expense_date TEXT,
+                category TEXT NOT NULL DEFAULT 'Uncategorized',
+                payment_method TEXT,
+                receipt_id TEXT,
+                notes TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS vendors (
+                vendor_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                default_category TEXT,
+                tax_identifier TEXT,
+                notes TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS budgets (
+                budget_id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                category TEXT,
+                amount TEXT NOT NULL,
+                currency_code TEXT NOT NULL,
+                period TEXT NOT NULL DEFAULT 'monthly',
+                starts_on TEXT,
+                created_at TEXT NOT NULL
+            )
+        """)
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date)")
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category)")
+        connection.execute("CREATE INDEX IF NOT EXISTS idx_receipt_events_receipt ON receipt_events(receipt_id, created_at)")
         connection.commit()
 
 
@@ -226,3 +275,120 @@ def get_analytics(database_path: str | Path = DEFAULT_DATABASE_PATH) -> dict[str
         "spend_by_category": categories,
         "monthly_spend": dict(sorted(monthly.items())),
     }
+
+def add_receipt_event(receipt_id: str, action: str, details: dict[str, Any],
+                      database_path: str | Path = DEFAULT_DATABASE_PATH) -> None:
+    initialize_database(database_path)
+    with _connect(database_path) as connection:
+        connection.execute(
+            "INSERT INTO receipt_events (receipt_id, action, details_json, created_at) VALUES (?, ?, ?, ?)",
+            (receipt_id, action, json.dumps(details, ensure_ascii=False), datetime.now(timezone.utc).isoformat()),
+        )
+        connection.commit()
+
+
+def get_receipt_events(receipt_id: str, database_path: str | Path = DEFAULT_DATABASE_PATH) -> list[dict]:
+    initialize_database(database_path)
+    with _connect(database_path) as connection:
+        rows = connection.execute(
+            "SELECT * FROM receipt_events WHERE receipt_id = ? ORDER BY created_at DESC",
+            (receipt_id,),
+        ).fetchall()
+    return [{**dict(row), "details": json.loads(row["details_json"] or "{}")} for row in rows]
+
+
+def create_expense(data: dict[str, Any], database_path: str | Path = DEFAULT_DATABASE_PATH) -> dict:
+    initialize_database(database_path)
+    expense_id = data.get("expense_id") or __import__("uuid").uuid4().hex
+    created_at = datetime.now(timezone.utc).isoformat()
+    fields = {
+        "expense_id": expense_id,
+        "description": str(data["description"]).strip(),
+        "merchant_name": data.get("merchant_name"),
+        "amount": str(data["amount"]),
+        "currency_code": str(data["currency_code"]).upper(),
+        "expense_date": data.get("expense_date"),
+        "category": data.get("category") or "Uncategorized",
+        "payment_method": data.get("payment_method"),
+        "receipt_id": data.get("receipt_id"),
+        "notes": data.get("notes"),
+        "created_at": created_at,
+    }
+    with _connect(database_path) as connection:
+        connection.execute(
+            """INSERT INTO expenses (expense_id, description, merchant_name, amount,
+            currency_code, expense_date, category, payment_method, receipt_id, notes, created_at)
+            VALUES (:expense_id, :description, :merchant_name, :amount, :currency_code,
+            :expense_date, :category, :payment_method, :receipt_id, :notes, :created_at)""",
+            fields,
+        )
+        connection.commit()
+    return fields
+
+
+def list_expenses(currency_code: str | None = None, category: str | None = None,
+                  database_path: str | Path = DEFAULT_DATABASE_PATH) -> list[dict]:
+    initialize_database(database_path)
+    clauses, values = [], []
+    if currency_code:
+        clauses.append("currency_code = ?"); values.append(currency_code.upper())
+    if category:
+        clauses.append("category = ?"); values.append(category)
+    where = " WHERE " + " AND ".join(clauses) if clauses else ""
+    with _connect(database_path) as connection:
+        rows = connection.execute(f"SELECT * FROM expenses{where} ORDER BY expense_date DESC, created_at DESC", values).fetchall()
+    return [dict(row) for row in rows]
+
+
+def delete_expense(expense_id: str, database_path: str | Path = DEFAULT_DATABASE_PATH) -> bool:
+    initialize_database(database_path)
+    with _connect(database_path) as connection:
+        cursor = connection.execute("DELETE FROM expenses WHERE expense_id = ?", (expense_id,))
+        connection.commit()
+        return cursor.rowcount > 0
+
+
+def create_vendor(data: dict[str, Any], database_path: str | Path = DEFAULT_DATABASE_PATH) -> dict:
+    initialize_database(database_path)
+    vendor_id = __import__("uuid").uuid4().hex
+    record = {"vendor_id": vendor_id, "name": str(data["name"]).strip(),
+              "default_category": data.get("default_category"),
+              "tax_identifier": data.get("tax_identifier"), "notes": data.get("notes"),
+              "created_at": datetime.now(timezone.utc).isoformat()}
+    with _connect(database_path) as connection:
+        connection.execute(
+            "INSERT INTO vendors (vendor_id, name, default_category, tax_identifier, notes, created_at) VALUES (:vendor_id, :name, :default_category, :tax_identifier, :notes, :created_at)",
+            record,
+        )
+        connection.commit()
+    return record
+
+
+def list_vendors(database_path: str | Path = DEFAULT_DATABASE_PATH) -> list[dict]:
+    initialize_database(database_path)
+    with _connect(database_path) as connection:
+        return [dict(row) for row in connection.execute("SELECT * FROM vendors ORDER BY name").fetchall()]
+
+
+def create_budget(data: dict[str, Any], database_path: str | Path = DEFAULT_DATABASE_PATH) -> dict:
+    initialize_database(database_path)
+    budget_id = __import__("uuid").uuid4().hex
+    record = {"budget_id": budget_id, "name": str(data["name"]).strip(),
+              "category": data.get("category"), "amount": str(data["amount"]),
+              "currency_code": str(data["currency_code"]).upper(),
+              "period": data.get("period", "monthly"), "starts_on": data.get("starts_on"),
+              "created_at": datetime.now(timezone.utc).isoformat()}
+    with _connect(database_path) as connection:
+        connection.execute(
+            "INSERT INTO budgets (budget_id, name, category, amount, currency_code, period, starts_on, created_at) VALUES (:budget_id, :name, :category, :amount, :currency_code, :period, :starts_on, :created_at)",
+            record,
+        )
+        connection.commit()
+    return record
+
+
+def list_budgets(database_path: str | Path = DEFAULT_DATABASE_PATH) -> list[dict]:
+    initialize_database(database_path)
+    with _connect(database_path) as connection:
+        return [dict(row) for row in connection.execute("SELECT * FROM budgets ORDER BY created_at DESC").fetchall()]
+
