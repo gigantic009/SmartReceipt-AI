@@ -5,6 +5,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from backend.app.line_item_extractor import extract_line_items
+from backend.app.date_normalizer import normalize_document_date
 
 CURRENCY_MARKERS = {
     "INR": ("₹", "INR", "RS."), "USD": ("USD", "US$", "$"),
@@ -168,6 +169,7 @@ def parse_global_document(text: str) -> dict[str, Any]:
     balance = _labeled_amount(lines, (r"Balance\s*Due", r"Outstanding", r"Due\s*Amount"))
     number = re.search(r"\b(?:Invoice|Receipt|Bill)\s*(?:No\.?|Number|#)?\s*[:#-]?\s*([A-Z0-9][A-Z0-9/-]{2,})", text, re.I)
     date = re.search(r"\b(?:Date|Invoice Date|Issue Date)\s*[:#-]?\s*([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}|\d{1,4}[-/.]\d{1,2}[-/.]\d{1,4})", text, re.I)
+    issue_date = normalize_document_date(date.group(1) if date else None, country["country_code"])
     merchant = next((line for line in lines[:8] if len(line) >= 4 and not re.search(r"invoice|receipt|tax invoice|bill to|ship to", line, re.I)), None)
     tax_total = None
     try:
@@ -177,6 +179,7 @@ def parse_global_document(text: str) -> dict[str, Any]:
         "schema_version": "1.0", "document_type": _document_type(text),
         "document_number": number.group(1) if number else None,
         "issue_date_raw": date.group(1) if date else None,
+        "issue_date": issue_date,
         "merchant_name_candidate": merchant,
         "country": country, "currency": detect_currency(text, country["country_code"]),
         "amounts": {"subtotal": subtotal, "discount": discount, "charges": charges,
@@ -184,6 +187,7 @@ def parse_global_document(text: str) -> dict[str, Any]:
         "taxes": taxes, "line_items": extract_line_items(text), "payments": _payments(lines), "source_text": text,
         "extraction_warnings": [
             "Line-item rows are heuristic candidates; verify each description and amount.",
+            "Ambiguous date formats are left unnormalized when locale evidence is insufficient." if issue_date.get("ambiguous") else "",
             "Country and currency detection are heuristic; review medium, ambiguous or unknown results.",
             "Tax extraction is not tax-compliance verification."
         ]}
