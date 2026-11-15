@@ -45,32 +45,64 @@ def _money(value: str | None) -> str | None:
     except (InvalidOperation, ValueError): return None
 
 def detect_country(text: str) -> dict[str, Any]:
+    """Prefer explicit country and tax-registration clues over weak address patterns."""
     evidence = []
     for country, patterns in COUNTRY_HINTS:
         for pattern in patterns:
-            match = re.search(pattern, text, re.I)
-            if match:
+            for match in re.finditer(pattern, text, re.I):
                 evidence.append({"country": country, "matched_text": match.group(0)})
                 break
-    counts = {}
-    for item in evidence: counts[item["country"]] = counts.get(item["country"], 0) + 1
-    ranked = sorted(counts.items(), key=lambda x: x[1], reverse=True)
-    if not ranked: return {"country_code": None, "confidence": "unknown", "evidence": []}
+    counts: dict[str, int] = {}
+    for item in evidence:
+        counts[item["country"]] = counts.get(item["country"], 0) + 1
+    ranked = sorted(counts.items(), key=lambda item: item[1], reverse=True)
+    if not ranked:
+        return {"country_code": None, "confidence": "unknown", "evidence": []}
     winner, count = ranked[0]
     tied = len(ranked) > 1 and ranked[1][1] == count
-    return {"country_code": None if tied else winner,
-            "confidence": "high" if count >= 2 and not tied else "medium" if not tied else "ambiguous",
-            "evidence": evidence}
+    # Explicit country names and country-specific tax identifiers are stronger
+    # than generic address fragments. Keep conflicts unresolved.
+    explicit = bool(re.search(r"\\bIndia\\b|\\bUnited States\\b|\\bUSA\\b|\\bUnited Kingdom\\b|\\bAustralia\\b|\\bUnited Arab Emirates\\b", text, re.I))
+    tax_clue = bool(re.search(r"\\bGSTIN\\b|\\bCGST\\b|\\bSGST\\b|\\bIGST\\b", text, re.I))
+    confidence = "ambiguous" if tied else "high" if explicit or (winner == "IN" and tax_clue) or count >= 2 else "medium"
+    return {"country_code": None if tied else winner, "confidence": confidence, "evidence": evidence}
+
 
 def detect_currency(text: str, country_code: str | None) -> dict[str, Any]:
+    """Resolve currency conservatively; OCR-noisy symbols must not override locale."""
     upper = text.upper()
-    found = list(dict.fromkeys(code for code, markers in CURRENCY_MARKERS.items()
-                               if any(marker.upper() in upper for marker in markers)))
-    if len(found) == 1: return {"currency_code": found[0], "confidence": "high", "evidence": found}
-    if len(found) > 1: return {"currency_code": None, "confidence": "ambiguous", "evidence": found}
+    explicit_patterns = {
+        "INR": r"\\bINR\\b|₹|\\bRS\\.?(?=\\s*\\d)",
+        "USD": r"\\bUSD\\b|US\\$",
+        "EUR": r"\\bEUR\\b",
+        "GBP": r"\\bGBP\\b",
+        "CNY": r"\\bCNY\\b|\\bRMB\\b",
+        "JPY": r"\\bJPY\\b",
+        "AUD": r"\\bAUD\\b|A\\$",
+        "CAD": r"\\bCAD\\b|C\\$",
+        "CHF": r"\\bCHF\\b",
+        "SGD": r"\\bSGD\\b|S\\$",
+        "AED": r"\\bAED\\b",
+    }
+    explicit = [code for code, pattern in explicit_patterns.items() if re.search(pattern, upper, re.I)]
+    if len(explicit) == 1:
+        return {"currency_code": explicit[0], "confidence": "high", "evidence": [f"explicit:{explicit[0]}"]}
+    if len(explicit) > 1:
+        return {"currency_code": None, "confidence": "ambiguous", "evidence": explicit}
+
     defaults = {"IN":"INR","US":"USD","GB":"GBP","JP":"JPY","CN":"CNY","DE":"EUR","FR":"EUR","AU":"AUD","AE":"AED"}
     if country_code in defaults:
         return {"currency_code": defaults[country_code], "confidence": "medium", "evidence": [f"country:{country_code}"]}
+
+    # A bare dollar sign is shared by several currencies; yen/yuan share ¥.
+    if "¥" in text:
+        return {"currency_code": None, "confidence": "ambiguous", "evidence": ["symbol:¥ (CNY or JPY)"]}
+    if "$" in text:
+        return {"currency_code": None, "confidence": "ambiguous", "evidence": ["symbol:$ (multiple currencies)"]}
+    if "€" in text:
+        return {"currency_code": "EUR", "confidence": "medium", "evidence": ["symbol:€"]}
+    if "£" in text:
+        return {"currency_code": "GBP", "confidence": "medium", "evidence": ["symbol:£"]}
     return {"currency_code": None, "confidence": "unknown", "evidence": []}
 
 def _labeled_amount(lines: list[str], labels: tuple[str, ...]) -> dict[str, Any] | None:
