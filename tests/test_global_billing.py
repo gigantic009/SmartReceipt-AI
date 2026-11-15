@@ -44,6 +44,6 @@ def test_explicit_currency_code_wins():
     assert result["confidence"] == "high"
 
 def test_amount_paid_does_not_reuse_later_grand_total_on_same_line():
-    parsed = parse_global_document("Corner Hotel\\nAmount Paid 123.00 Total Amount 456.00")
+    parsed = parse_global_document("Corner Hotel\nAmount Paid 123.00 Total Amount 456.00")
     assert parsed["amounts"]["amount_paid"]["value"] == "123.00"
     assert parsed["amounts"]["grand_total"]["value"] == "456.00"
