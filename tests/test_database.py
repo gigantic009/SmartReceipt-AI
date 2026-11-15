@@ -92,3 +92,36 @@ def test_receipt_library_search_update_duplicate_and_analytics(tmp_path):
     assert summary["document_count"] == 1
     assert summary["spend_by_currency"]["INR"] == 1200.0
     assert summary["spend_by_category"]["Travel"] == 1200.0
+
+
+def test_manual_expense_vendor_budget_and_combined_analytics(tmp_path):
+    from backend.app.database import (
+        create_expense, list_expenses, create_vendor, list_vendors,
+        create_budget, list_budgets, get_analytics,
+    )
+    database_path = tmp_path / "finance.sqlite3"
+    create_expense({
+        "description": "Metro ticket", "amount": "75.50", "currency_code": "INR",
+        "expense_date": "2026-11-16", "category": "Travel",
+    }, database_path)
+    assert len(list_expenses(currency_code="INR", database_path=database_path)) == 1
+    vendor = create_vendor({"name": "City Metro", "default_category": "Travel"}, database_path)
+    assert vendor["name"] == "City Metro"
+    assert list_vendors(database_path)[0]["vendor_id"] == vendor["vendor_id"]
+    budget = create_budget({
+        "name": "Monthly travel", "amount": "2500", "currency_code": "INR",
+        "category": "Travel",
+    }, database_path)
+    assert list_budgets(database_path)[0]["budget_id"] == budget["budget_id"]
+    analytics = get_analytics(database_path)
+    assert analytics["expense_count"] == 1
+    assert analytics["spend_by_currency"]["INR"] == 75.5
+
+
+def test_receipt_correction_creates_audit_event(tmp_path):
+    from backend.app.database import add_receipt_event, get_receipt_events
+    database_path = tmp_path / "audit.sqlite3"
+    add_receipt_event("receipt-42", "fields_corrected", {"category": "Travel"}, database_path)
+    events = get_receipt_events("receipt-42", database_path)
+    assert events[0]["action"] == "fields_corrected"
+    assert events[0]["details"]["category"] == "Travel"
