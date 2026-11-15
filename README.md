@@ -15,6 +15,7 @@ The project combines ideas from publicly documented commercial products and open
 - Heuristic country/currency evidence with ambiguity handling.
 - Dynamic tax entries and conservative financial reconciliation.
 - OCR confidence summary and review-required status.
+- Optional local Ollama LLM enrichment, disabled by default, with OCR-source evidence gating and no hosted data transfer.
 - Structured JSON export from the frontend.
 
 ### Document library and operations
@@ -57,8 +58,11 @@ The project combines ideas from publicly documented commercial products and open
 | DELETE | /expenses/{expense_id} | Delete a manual expense |
 | GET/POST | /vendors | List and create vendors |
 | GET/POST | /budgets | List and create budget records |
+| GET | /budgets/status | Calculate period-based budget utilization |
 | GET | /receipts/{receipt_id}/events | Retrieve document correction events |
 | GET | /exports/receipts.csv | Download document register as CSV |
+| GET | /exports/finance.xlsx | Download multi-sheet Excel report |
+| GET | /reports/summary.pdf | Download PDF financial summary |
 
 Interactive API docs: http://127.0.0.1:8000/docs
 
@@ -97,6 +101,17 @@ Build the frontend:
     cd frontend
     npm run build
 
+
+### Optional local AI enrichment (Ollama)
+
+The deterministic parser works without an LLM. To enable optional local model suggestions, install Ollama and download a model such as llama3.1:8b, start the local Ollama service, then set these variables in the backend CMD window before starting FastAPI:
+
+    set SMARTRECEIPT_AI_PROVIDER=ollama
+    set OLLAMA_BASE_URL=http://127.0.0.1:11434
+    set OLLAMA_MODEL=llama3.1:8b
+
+This integration only permits localhost endpoints. Model suggestions are accepted only when they can be matched to OCR-visible evidence; deterministic fields are not overwritten. If Ollama is unavailable, processing falls back to the deterministic parser. Receipt text is not sent to a hosted AI service by this implementation.
+
 ## Research-informed capability roadmap
 
 See docs/PRODUCT_CAPABILITY_BLUEPRINT.md for the researched capability matrix, inspiration sources, implementation status and phased roadmap.
@@ -116,7 +131,7 @@ This is a development prototype, not a finished enterprise platform or tax-compl
 
 - OCR and parsing are heuristic and can misread fields. Review extracted data before relying on it.
 - Currency and country identification are not authoritative.
-- Keyword categorization is a suggestion, not a trained AI model.
+- Keyword categorization is a suggestion, not a trained AI model. Local LLM enrichment is optional and disabled unless explicitly configured.
 - SHA-256 duplicate detection only catches exact byte-for-byte duplicates.
 - Analytics summarize only records saved in the local database.
 - Review APIs update normalized fields; the full visual field editor and richer correction audit UI are still planned.
