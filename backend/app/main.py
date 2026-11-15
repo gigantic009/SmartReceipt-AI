@@ -12,12 +12,13 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image, UnidentifiedImageError
 
-from backend.app.database import (save_receipt, list_receipts, get_receipt, update_receipt, delete_receipt, find_duplicate, get_analytics, add_receipt_event, get_receipt_events, create_expense, list_expenses, delete_expense, create_vendor, list_vendors, create_budget, list_budgets, get_budget_status, get_vendor_by_name)
+from backend.app.database import (save_receipt, list_receipts, get_receipt, update_receipt, delete_receipt, find_duplicate, get_analytics, add_receipt_event, get_receipt_events, create_expense, list_expenses, delete_expense, create_vendor, list_vendors, create_budget, list_budgets, get_budget_status, get_vendor_by_name, save_bank_transactions, list_bank_transactions, set_transaction_match)
 from backend.app.expense_intelligence import suggest_category
 from backend.app.ai_enrichment import enrich_with_local_model
 from backend.app.document_ingestion import extract_document_text
 from backend.app.reporting import build_financial_workbook, build_financial_pdf
 from backend.app.financial_assistant import answer_financial_question
+from backend.app.transaction_matcher import match_transaction_to_receipts
 from backend.app.image_security import validate_image_dimensions
 from backend.app.image_processor import (
     PreprocessConfig,
@@ -535,4 +536,90 @@ def assistant_query(data: dict):
     if len(question) > 1000:
         raise HTTPException(status_code=400, detail="question must be 1000 characters or fewer.")
     return answer_financial_question(question)
+
+@app.post("/transactions/import-csv")
+async def import_transactions_csv(file: UploadFile = File(...)):
+    filename = Path(file.filename or "").name
+    if Path(filename).suffix.lower() != ".csv":
+        raise HTTPException(status_code=400, detail="Upload a CSV bank statement.")
+    raw = await file.read(5 * 1024 * 1024 + 1)
+    await file.close()
+    if len(raw) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="CSV must be 5 MB or smaller.")
+    try:
+        text = raw.decode("utf-8-sig")
+        reader = csv.DictReader(io.StringIO(text))
+        if not reader.fieldnames:
+            raise ValueError("CSV header row is missing.")
+        headers = {re.sub(r"[^a-z]", "", h.casefold()): h for h in reader.fieldnames}
+        def column(*names):
+            return next((headers[name] for name in names if name in headers), None)
+        date_col = column("date", "transactiondate", "posteddate", "valuedate")
+        desc_col = column("description", "details", "narration", "transactiondetails")
+        amount_col = column("amount", "transactionamount")
+        debit_col, credit_col = column("debit", "withdrawal"), column("credit", "deposit")
+        currency_col = column("currency", "currencycode", "ccy")
+        merchant_col = column("merchant", "payee", "counterparty")
+        reference_col = column("reference", "ref", "transactionid", "chequeno")
+        if not desc_col or not currency_col or not (amount_col or debit_col or credit_col):
+            raise ValueError("CSV needs description, currency and amount (or debit/credit) columns.")
+        records, rejected = [], []
+        for line_number, row in enumerate(reader, start=2):
+            try:
+                raw_amount = row.get(amount_col) if amount_col else (row.get(debit_col) or row.get(credit_col))
+                amount = Decimal(str(raw_amount).replace(",", "").replace("₹", "").replace("$", "").strip())
+                currency = str(row.get(currency_col, "")).strip().upper()
+                description = str(row.get(desc_col, "")).strip()
+                if not amount.is_finite() or amount == 0 or not re.fullmatch(r"[A-Z]{3}", currency) or not description:
+                    raise ValueError("missing or invalid amount, currency or description")
+                records.append({
+                    "transaction_date": str(row.get(date_col, "")).strip() if date_col else None,
+                    "description": description[:500],
+                    "merchant_name": str(row.get(merchant_col, "")).strip()[:200] if merchant_col else None,
+                    "amount": format(amount, "f"),
+                    "currency_code": currency,
+                    "reference": str(row.get(reference_col, "")).strip()[:200] if reference_col else None,
+                })
+            except (InvalidOperation, ValueError, TypeError):
+                rejected.append({"line": line_number, "reason": "Invalid row; check amount, currency and description."})
+        if not records:
+            raise ValueError("No valid transactions were found in the CSV.")
+        imported = save_bank_transactions(records)
+        return {"imported": imported, "rejected": rejected}
+    except UnicodeDecodeError as error:
+        raise HTTPException(status_code=400, detail="CSV must be UTF-8 encoded.") from error
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+
+@app.get("/transactions")
+def transactions_list():
+    return {"items": list_bank_transactions()}
+
+
+@app.get("/transactions/{transaction_id}/match-candidates")
+def transaction_match_candidates(transaction_id: str):
+    transaction = next((item for item in list_bank_transactions() if item["transaction_id"] == transaction_id), None)
+    if transaction is None:
+        raise HTTPException(status_code=404, detail="Transaction not found.")
+    receipts = list_receipts(limit=500)
+    candidates = match_transaction_to_receipts(transaction, receipts)
+    return {"transaction_id": transaction_id, "candidates": candidates}
+
+
+@app.post("/transactions/{transaction_id}/match")
+def confirm_transaction_match(transaction_id: str, data: dict):
+    receipt_id = data.get("receipt_id")
+    if not isinstance(receipt_id, str) or not receipt_id:
+        raise HTTPException(status_code=400, detail="receipt_id is required.")
+    transaction = next((item for item in list_bank_transactions() if item["transaction_id"] == transaction_id), None)
+    receipt = get_receipt(receipt_id)
+    if transaction is None or receipt is None:
+        raise HTTPException(status_code=404, detail="Transaction or receipt not found.")
+    candidates = match_transaction_to_receipts(transaction, [receipt])
+    if not candidates:
+        raise HTTPException(status_code=400, detail="Receipt does not match amount and currency/date constraints.")
+    score = candidates[0]["score"]
+    set_transaction_match(transaction_id, receipt_id, score)
+    return {"matched": True, "transaction_id": transaction_id, "receipt_id": receipt_id, "score": score}
 
