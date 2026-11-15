@@ -11,6 +11,8 @@ docker compose up --build -d
 docker compose ps
 ```
 
+The default port bindings listen on loopback only, so the demo is not exposed to other machines on your network.
+
 Open:
 - Frontend: http://localhost:8080
 - Backend health: http://localhost:8000/health
