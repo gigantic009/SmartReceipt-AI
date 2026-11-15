@@ -89,6 +89,20 @@ def initialize_database(database_path: str | Path = DEFAULT_DATABASE_PATH) -> No
             )
         """)
         connection.execute("""
+            CREATE TABLE IF NOT EXISTS bank_transactions (
+                transaction_id TEXT PRIMARY KEY,
+                transaction_date TEXT,
+                description TEXT NOT NULL,
+                merchant_name TEXT,
+                amount TEXT NOT NULL,
+                currency_code TEXT NOT NULL,
+                reference TEXT,
+                matched_receipt_id TEXT,
+                match_score REAL,
+                created_at TEXT NOT NULL
+            )
+        """)
+        connection.execute("""
             CREATE TABLE IF NOT EXISTS budgets (
                 budget_id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
@@ -484,4 +498,42 @@ def get_vendor_by_name(name: str | None, database_path: str | Path = DEFAULT_DAT
             "SELECT * FROM vendors WHERE lower(name) = lower(?) LIMIT 1", (name.strip(),)
         ).fetchone()
     return dict(row) if row else None
+
+def save_bank_transactions(records: list[dict[str, Any]], database_path: str | Path = DEFAULT_DATABASE_PATH) -> int:
+    initialize_database(database_path)
+    count = 0
+    with _connect(database_path) as connection:
+        for item in records:
+            transaction_id = __import__("uuid").uuid4().hex
+            connection.execute(
+                """INSERT INTO bank_transactions (transaction_id, transaction_date, description,
+                merchant_name, amount, currency_code, reference, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (transaction_id, item.get("transaction_date"), item["description"],
+                 item.get("merchant_name"), str(item["amount"]), item["currency_code"],
+                 item.get("reference"), datetime.now(timezone.utc).isoformat()),
+            )
+            count += 1
+        connection.commit()
+    return count
+
+
+def list_bank_transactions(database_path: str | Path = DEFAULT_DATABASE_PATH) -> list[dict]:
+    initialize_database(database_path)
+    with _connect(database_path) as connection:
+        return [dict(row) for row in connection.execute(
+            "SELECT * FROM bank_transactions ORDER BY transaction_date DESC, created_at DESC"
+        ).fetchall()]
+
+
+def set_transaction_match(transaction_id: str, receipt_id: str, score: float,
+                          database_path: str | Path = DEFAULT_DATABASE_PATH) -> bool:
+    initialize_database(database_path)
+    with _connect(database_path) as connection:
+        cursor = connection.execute(
+            "UPDATE bank_transactions SET matched_receipt_id = ?, match_score = ? WHERE transaction_id = ?",
+            (receipt_id, score, transaction_id),
+        )
+        connection.commit()
+        return cursor.rowcount > 0
 
