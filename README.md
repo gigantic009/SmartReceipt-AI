@@ -16,6 +16,8 @@ The project combines ideas from publicly documented commercial products and open
 - Dynamic tax entries and conservative financial reconciliation.
 - OCR confidence summary and review-required status.
 - Optional local Ollama LLM enrichment, disabled by default, with OCR-source evidence gating and no hosted data transfer.
+- Grounded financial question-answering endpoint and assistant UI, returning ledger evidence rather than inventing figures.
+- Locale-aware date normalization; ambiguous numeric dates remain unresolved when country context is insufficient.
 - Structured JSON export from the frontend.
 
 ### Document library and operations
@@ -135,7 +137,9 @@ This is a development prototype, not a finished enterprise platform or tax-compl
 - SHA-256 duplicate detection only catches exact byte-for-byte duplicates.
 - Analytics summarize only records saved in the local database.
 - Review APIs update normalized fields; the full visual field editor and richer correction audit UI are still planned.
-- Line-item extraction is heuristic candidate detection, not guaranteed table reconstruction. Quantity and unit price are not inferred unless visibly captured.
+- Line-item extraction is heuristic candidate detection, not guaranteed table reconstruction.
+- The financial assistant currently supports a bounded set of deterministic ledger questions; it is not a general-purpose generative chatbot.
+- Category and monthly analytics are grouped by currency; no foreign-exchange conversion is performed. Quantity and unit price are not inferred unless visibly captured.
 - Authentication, authorization, encrypted storage, retention/deletion controls, backups, rate limiting and production monitoring are not yet implemented.
 
 Do not expose this prototype publicly or upload real personal/financial documents to GitHub. Keep uploads, OCR output, databases and private sample receipts out of version control. Country adapters are not legal advice or tax certification; fraud signals, when implemented, must be treated as review indicators rather than accusations.
