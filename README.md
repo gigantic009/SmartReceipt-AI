@@ -218,7 +218,7 @@ docker compose down -v
 
 ## Configuration
 
-Copy `.env.example` to `.env`. Core functionality does not require API keys, payment details, a hosted AI provider or a cloud account.
+Copy `.env.example` to `.env`. The backend loads this file automatically when it starts. Core functionality does not require API keys, payment details, a hosted AI provider or a cloud account.
 
 | Variable | Default | Purpose |
 |---|---|---|

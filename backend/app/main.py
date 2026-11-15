@@ -8,6 +8,11 @@ import re
 import sqlite3
 from decimal import Decimal, InvalidOperation
 
+from dotenv import load_dotenv
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(PROJECT_ROOT / ".env")
+
 from fastapi import FastAPI, File, HTTPException, UploadFile, Query
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,7 +37,6 @@ from backend.app.receipt_parser import parse_receipt, validate_parsed_receipt
 from backend.app.global_billing import parse_global_document, validate_global_document
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
 UPLOAD_DIR = PROJECT_ROOT / "backend" / "uploads"
 OCR_READY_DIR = PROJECT_ROOT / "backend" / "ocr_ready"
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
