@@ -42,6 +42,15 @@ def _configure_tesseract() -> None:
     pytesseract.pytesseract.tesseract_cmd = TESSERACT_CMD
 
 
+def extract_text_from_pil_image(image: Image.Image, languages: str | None = None) -> str:
+    """OCR an in-memory image using configured Tesseract language packs."""
+    _configure_tesseract()
+    lang = languages or os.getenv("TESSERACT_LANGUAGES", "eng")
+    return pytesseract.image_to_string(
+        image, lang=lang, config="--oem 3 --psm 6"
+    ).strip()
+
+
 def extract_text(image_path: str | Path) -> str:
     """Extract complete text from a receipt image using Tesseract OCR."""
     _configure_tesseract()
@@ -53,7 +62,7 @@ def extract_text(image_path: str | Path) -> str:
     with Image.open(path) as image:
         return pytesseract.image_to_string(
             image,
-            lang="eng",
+            lang=os.getenv("TESSERACT_LANGUAGES", "eng"),
             config="--oem 3 --psm 6"
         ).strip()
 
