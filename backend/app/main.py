@@ -11,6 +11,7 @@ from PIL import Image, UnidentifiedImageError
 
 from backend.app.database import (save_receipt, list_receipts, get_receipt, update_receipt, delete_receipt, find_duplicate, get_analytics)
 from backend.app.expense_intelligence import suggest_category
+from backend.app.document_ingestion import extract_document_text
 from backend.app.image_security import validate_image_dimensions
 from backend.app.image_processor import (
     PreprocessConfig,
@@ -279,4 +280,113 @@ def export_receipts_csv():
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=smartreceipt-documents.csv"},
     )
+
+async def _process_document_upload(file: UploadFile) -> dict:
+    """Shared safe processing path for PDF, multipage and image uploads."""
+    filename = Path(file.filename or "document").name
+    extension = Path(filename).suffix.lower()
+    allowed = {".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff", ".pdf"}
+    if extension not in allowed:
+        raise HTTPException(status_code=400, detail="Unsupported document format.")
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    if not data:
+        raise HTTPException(status_code=400, detail="The uploaded file is empty.")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Document must be 10 MB or smaller.")
+
+    digest = hashlib.sha256(data).hexdigest()
+    duplicate = find_duplicate(digest)
+    receipt_id = str(uuid.uuid4())
+    stored_name = f"{receipt_id}{extension}"
+    upload_path = UPLOAD_DIR / stored_name
+    upload_path.write_bytes(data)
+    try:
+        try:
+            extraction = extract_document_text(data, filename)
+        except ValueError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
+        ocr_text = extraction["text"]
+        if not ocr_text:
+            raise HTTPException(status_code=422, detail="No readable text was detected.")
+        parsed = parse_receipt(ocr_text)
+        legacy_validation = validate_parsed_receipt(parsed)
+        document = parse_global_document(ocr_text)
+        document["page_count"] = extraction["page_count"]
+        document["page_extraction"] = [
+            {"page": p["page"], "method": p["method"], "text_length": len(p["text"])}
+            for p in extraction["pages"]
+        ]
+        category = suggest_category(document.get("merchant_name_candidate"), ocr_text)
+        document["category"] = category["category"]
+        document["category_suggestion"] = category
+        validation = validate_global_document(document)
+        review_required = validation["status"] != "valid" or duplicate is not None
+        status = "review_required" if review_required else "success"
+        ocr_summary = {
+            "average_confidence": None,
+            "word_count": len(ocr_text.split()),
+            "review_required": review_required,
+            "page_count": extraction["page_count"],
+            "extraction_methods": extraction["methods"],
+            "empty_pages": extraction["empty_pages"],
+        }
+        save_receipt(
+            receipt_id=receipt_id,
+            original_filename=stored_name,
+            processed_filename=stored_name,
+            status=status,
+            ocr_text=ocr_text,
+            receipt=parsed,
+            validation=legacy_validation,
+            ocr=ocr_summary,
+            global_document=document,
+            content_sha256=digest,
+        )
+        return {
+            "message": "Document processed successfully.",
+            "status": status,
+            "receipt_id": receipt_id,
+            "filename": stored_name,
+            "ocr_text": ocr_text,
+            "receipt": parsed,
+            "global": document,
+            "global_validation": validation,
+            "validation": legacy_validation,
+            "ocr": ocr_summary,
+            "duplicate": {"detected": duplicate is not None, "match": duplicate},
+            "category": category,
+        }
+    except Exception:
+        upload_path.unlink(missing_ok=True)
+        raise
+    finally:
+        await file.close()
+
+
+@app.post("/upload-document")
+async def upload_document(file: UploadFile = File(...)):
+    """Upload a PDF, multipage scan or supported image."""
+    return await _process_document_upload(file)
+
+
+@app.post("/upload-batch")
+async def upload_batch(files: list[UploadFile] = File(...)):
+    """Process a small batch sequentially to keep local resource use bounded."""
+    if not files or len(files) > 10:
+        raise HTTPException(status_code=400, detail="Upload between 1 and 10 documents per batch.")
+    results = []
+    for file in files:
+        try:
+            results.append(await _process_document_upload(file))
+        except HTTPException as error:
+            results.append({
+                "filename": Path(file.filename or "document").name,
+                "status": "failed",
+                "error": error.detail,
+            })
+    return {
+        "processed": sum(1 for item in results if item.get("receipt_id")),
+        "failed": sum(1 for item in results if item.get("status") == "failed"),
+        "items": results,
+    }
 
