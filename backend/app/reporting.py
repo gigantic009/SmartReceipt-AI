@@ -50,9 +50,15 @@ def build_financial_workbook() -> bytes:
     for currency, amount in sorted(analytics["spend_by_currency"].items()):
         summary.append([currency, amount])
     summary.append([])
-    summary.append(["Spend by category", "Amount (currencies not converted)"])
-    for category, amount in sorted(analytics["spend_by_category"].items()):
-        summary.append([_safe_cell(category), amount])
+    summary.append(["Spend by category", "Currency", "Amount"])
+    for category, currency_amounts in sorted(analytics["spend_by_category"].items()):
+        for currency, amount in sorted(currency_amounts.items()):
+            summary.append([_safe_cell(category), currency, amount])
+    summary.append([])
+    summary.append(["Monthly spend", "Currency", "Amount"])
+    for month, currency_amounts in sorted(analytics["monthly_spend"].items()):
+        for currency, amount in sorted(currency_amounts.items()):
+            summary.append([month, currency, amount])
     for sheet in workbook.worksheets:
         sheet.freeze_panes = "A2"
         sheet.auto_filter.ref = sheet.dimensions
