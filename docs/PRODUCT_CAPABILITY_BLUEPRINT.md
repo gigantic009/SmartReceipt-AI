@@ -21,15 +21,18 @@ Build an evidence-first financial document intelligence platform. The product co
 | Currency-separated spend analytics | Open-source expense trackers | Baseline API + UI added |
 | CSV export | Expense tracker projects | Added |
 | XLSX/PDF report generation | SpendLens, Receipt Tracker | Added; currency-separated reports |
-| Statement import and receipt matching | Receipt Tracker, Ramp, Expensify | Planned |
+| Statement import and receipt matching | Receipt Tracker, Ramp, Expensify | CSV import and explainable matching with manual confirmation added |
 | Supplier rules and auto-categorization | Dext | Planned |
 | Budgets, recurring expenses and alerts | Open-source expense trackers | Budget records and utilization alerts added; recurring expenses planned |
 | Email / cloud inbox ingestion | Dext, Receipt Tracker | Planned |
 | Natural-language financial assistant with cited records | Receipt Intelligence | Bounded ledger Q&A and evidence payloads added; generative conversational layer planned |
 | Fraud, tampering, screenshot and blur analysis | Veryfi | Planned; must be treated as review signals, not fraud verdicts |
-| Authentication, workspaces, audit and retention | Enterprise document platforms | Required before multi-user/public deployment |
+| Authentication, workspaces, audit and retention | Enterprise document platforms | Audit baseline and local Docker stack added; authentication and hardening required before multi-user/public deployment |
 
 ## Current backend API additions
+
+- `POST /transactions/import-csv`, `GET /transactions`, match-candidate and confirmation routes: bank statement reconciliation.
+- Local Dockerfile, frontend Dockerfile, Compose stack and deployment guide added for evaluation.
 
 - `POST /upload-document` and `POST /upload-batch`: PDF/image and bounded batch ingestion.
 - `POST /assistant/query`: deterministic financial question answering over local saved records.
@@ -66,6 +69,8 @@ Build an evidence-first financial document intelligence platform. The product co
 - Currency-safe amount-paid / total / balance semantics.
 
 ### P1 — Document operations
+- Improve statement CSV column mapping and support additional bank export formats.
+- Add transaction unmatch/edit and reconciliation audit UI.
 - PDF and multi-page support.
 - Batch upload and asynchronous processing jobs.
 - Visual duplicate detection and cross-document duplicate review.
