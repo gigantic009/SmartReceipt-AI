@@ -473,3 +473,13 @@ def get_budget_status(as_of=None, database_path: str | Path = DEFAULT_DATABASE_P
         })
     return results
 
+def get_vendor_by_name(name: str | None, database_path: str | Path = DEFAULT_DATABASE_PATH) -> dict | None:
+    if not name:
+        return None
+    initialize_database(database_path)
+    with _connect(database_path) as connection:
+        row = connection.execute(
+            "SELECT * FROM vendors WHERE lower(name) = lower(?) LIMIT 1", (name.strip(),)
+        ).fetchone()
+    return dict(row) if row else None
+
