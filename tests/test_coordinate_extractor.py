@@ -254,3 +254,60 @@ def test_round_off_crop_reports_missing_token():
 
     assert result["status"] == "amount_not_found"
     assert result["value"] is None
+
+
+
+def test_round_off_crop_extractor_keeps_low_confidence_for_review(monkeypatch):
+    import numpy as np
+    from backend.app import coordinate_extractor as extractor
+
+    monkeypatch.setattr(
+        extractor.pytesseract,
+        "image_to_data",
+        lambda *args, **kwargs: {
+            "text": ["-18.00"],
+            "conf": ["84"],
+        },
+    )
+    image = np.zeros((333, 500, 3), dtype=np.uint8)
+    label = [word("Round", 300), word("Off", 325)]
+
+    result = extractor.extract_round_off_crop_field(image, label)
+
+    assert result["status"] == "needs_review"
+    assert result["value"] is None
+    assert result["proposed_value"] == "-18.00"
+    assert result["ocr_method"] == "grayscale 4x PSM 7"
+    assert result["crop"] == extractor.ROUND_OFF_AMOUNT_CROP
+
+
+def test_round_off_crop_extractor_accepts_high_confidence_signed_token(monkeypatch):
+    import numpy as np
+    from backend.app import coordinate_extractor as extractor
+
+    monkeypatch.setattr(
+        extractor.pytesseract,
+        "image_to_data",
+        lambda *args, **kwargs: {
+            "text": ["-18.00"],
+            "conf": ["92"],
+        },
+    )
+    image = np.zeros((333, 500, 3), dtype=np.uint8)
+    label = [word("Round", 300), word("Off", 325)]
+
+    result = extractor.extract_round_off_crop_field(image, label)
+
+    assert result["status"] == "recognized"
+    assert result["value"] == "-18.00"
+
+
+def test_round_off_crop_extractor_reports_missing_label():
+    import numpy as np
+    from backend.app.coordinate_extractor import extract_round_off_crop_field
+
+    image = np.zeros((333, 500, 3), dtype=np.uint8)
+    result = extract_round_off_crop_field(image, [])
+
+    assert result["status"] == "label_not_found"
+    assert result["value"] is None
