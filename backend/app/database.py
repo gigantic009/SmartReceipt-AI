@@ -405,3 +405,70 @@ def list_budgets(database_path: str | Path = DEFAULT_DATABASE_PATH) -> list[dict
     with _connect(database_path) as connection:
         return [dict(row) for row in connection.execute("SELECT * FROM budgets ORDER BY created_at DESC").fetchall()]
 
+def get_budget_status(as_of=None, database_path: str | Path = DEFAULT_DATABASE_PATH) -> list[dict]:
+    """Calculate budget consumption in the same currency without FX assumptions."""
+    from datetime import date, timedelta
+    from decimal import Decimal, InvalidOperation
+    today = as_of or date.today()
+    initialize_database(database_path)
+    with _connect(database_path) as connection:
+        budgets = connection.execute("SELECT * FROM budgets ORDER BY created_at DESC").fetchall()
+        receipts = connection.execute(
+            "SELECT total_amount, currency_code, category, document_date, created_at FROM receipts"
+        ).fetchall()
+        expenses = connection.execute(
+            "SELECT amount, currency_code, category, expense_date, created_at FROM expenses WHERE receipt_id IS NULL"
+        ).fetchall()
+
+    def period_start(period):
+        if period == "weekly":
+            return today - timedelta(days=today.weekday())
+        if period == "quarterly":
+            month = ((today.month - 1) // 3) * 3 + 1
+            return date(today.year, month, 1)
+        if period == "yearly":
+            return date(today.year, 1, 1)
+        return date(today.year, today.month, 1)
+
+    results = []
+    for budget in budgets:
+        start = period_start(budget["period"])
+        if budget["starts_on"]:
+            try:
+                start = max(start, date.fromisoformat(budget["starts_on"]))
+            except ValueError:
+                pass
+        spent = Decimal("0")
+        for row, amount_key, date_key in (
+            *((row, "total_amount", "document_date") for row in receipts),
+            *((row, "amount", "expense_date") for row in expenses),
+        ):
+            if row["currency_code"] != budget["currency_code"]:
+                continue
+            if budget["category"] and row["category"] != budget["category"]:
+                continue
+            try:
+                amount = Decimal(str(row[amount_key] or "0"))
+                raw_date = row[date_key] or row["created_at"]
+                entry_date = date.fromisoformat(str(raw_date)[:10])
+            except (InvalidOperation, ValueError, TypeError):
+                continue
+            if start <= entry_date <= today:
+                spent += amount
+        try:
+            limit = Decimal(budget["amount"])
+        except InvalidOperation:
+            limit = Decimal("0")
+        remaining = limit - spent
+        utilization = (spent / limit * 100) if limit > 0 else None
+        results.append({
+            **dict(budget),
+            "period_start": start.isoformat(),
+            "as_of": today.isoformat(),
+            "spent": format(spent, "f"),
+            "remaining": format(remaining, "f"),
+            "utilization_percent": round(float(utilization), 2) if utilization is not None else None,
+            "status": "over_budget" if spent > limit else "near_limit" if utilization is not None and utilization >= 80 else "within_budget",
+        })
+    return results
+
