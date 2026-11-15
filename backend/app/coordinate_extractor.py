@@ -26,6 +26,9 @@ SGST_CROP_CONFIDENCE_THRESHOLD = 85
 TOTAL_AMOUNT_CROP = (441, 265, 490, 280)
 TOTAL_AMOUNT_CROP_SCALE = 3
 TOTAL_AMOUNT_CROP_CONFIDENCE_THRESHOLD = 85
+ROUND_OFF_AMOUNT_CROP = (445, 248, 495, 265)
+ROUND_OFF_CROP_SCALE = 4
+ROUND_OFF_CROP_CONFIDENCE_THRESHOLD = 85
 
 # Coordinates are in the original 500x333 sample receipt image.
 # Adjust these regions for a different receipt template.
@@ -526,6 +529,59 @@ def interpret_round_off_crop_tokens(
     }
 
 
+
+def extract_round_off_crop_field(
+    image: Any,
+    label_words: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Read the sample Round Off amount using grayscale 4x PSM 7."""
+    if not label_words:
+        return {
+            "field": "round_off",
+            "value": None,
+            "status": "label_not_found",
+            "candidates": [],
+        }
+
+    left, top, right, bottom = ROUND_OFF_AMOUNT_CROP
+    crop = image[top:bottom, left:right]
+    if crop.size == 0:
+        raise ValueError(f"Invalid or empty Round Off amount crop: {ROUND_OFF_AMOUNT_CROP}")
+
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    enlarged = cv2.resize(
+        gray,
+        None,
+        fx=ROUND_OFF_CROP_SCALE,
+        fy=ROUND_OFF_CROP_SCALE,
+        interpolation=cv2.INTER_CUBIC,
+    )
+    data = pytesseract.image_to_data(
+        enlarged,
+        lang="eng",
+        config="--oem 3 --psm 7",
+        output_type=Output.DICT,
+    )
+
+    tokens = []
+    for raw_text, raw_confidence in zip(data["text"], data["conf"]):
+        text = raw_text.strip()
+        try:
+            confidence = float(raw_confidence)
+        except (TypeError, ValueError):
+            continue
+        if text and confidence >= 0:
+            tokens.append({"text": text, "confidence": confidence})
+
+    result = interpret_round_off_crop_tokens(
+        tokens,
+        label_confidence=min(word["confidence"] for word in label_words),
+    )
+    result["ocr_method"] = "grayscale 4x PSM 7"
+    result["crop"] = ROUND_OFF_AMOUNT_CROP
+    return result
+
+
 def extract_total_amount_crop_field(
     image: Any,
     label_words: list[dict[str, Any]],
@@ -600,6 +656,11 @@ def extract_receipt_fields(
 
         if field == "sgst":
             results[field] = extract_sgst_crop_field(
+                image,
+                find_label(word_cache[cache_key], FIELD_LABELS[field]),
+            )
+        elif field == "round_off":
+            results[field] = extract_round_off_crop_field(
                 image,
                 find_label(word_cache[cache_key], FIELD_LABELS[field]),
             )
