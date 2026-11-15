@@ -144,3 +144,12 @@ def test_budget_status_calculates_currency_and_category_utilization(tmp_path):
     assert status[0]["remaining"] == "100"
     assert status[0]["utilization_percent"] == 90.0
     assert status[0]["status"] == "near_limit"
+
+
+def test_vendor_lookup_is_case_insensitive(tmp_path):
+    from backend.app.database import create_vendor, get_vendor_by_name
+    database_path = tmp_path / "vendors.sqlite3"
+    create_vendor({"name": "Acme Supplies", "default_category": "Office"}, database_path)
+    vendor = get_vendor_by_name("ACME SUPPLIES", database_path)
+    assert vendor["default_category"] == "Office"
+    assert get_vendor_by_name("Unknown Vendor", database_path) is None
