@@ -19,7 +19,7 @@ from pytesseract import Output
 
 TESSERACT_DEFAULT = Path(r"C:\Program Files\Tesseract-OCR\tesseract.exe")
 DEFAULT_SCALE = 3
-DEFAULT_VERTICAL_TOLERANCE = 12
+DEFAULT_VERTICAL_TOLERANCE = 6
 
 # Coordinates are in the original 500x333 sample receipt image.
 # Adjust these regions for a different receipt template.
