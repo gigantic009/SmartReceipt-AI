@@ -157,3 +157,55 @@ def test_sgst_crop_does_not_join_multiple_tokens():
     assert result["status"] == "multiple_amount_tokens_review"
     assert result["value"] is None
     assert len(result["candidates"]) == 2
+
+
+
+def test_total_amount_crop_accepts_single_high_confidence_token():
+    from backend.app.coordinate_extractor import interpret_total_amount_crop_tokens
+
+    result = interpret_total_amount_crop_tokens(
+        [{"text": "12,750.00", "confidence": 96}],
+        label_confidence=95,
+    )
+
+    assert result["status"] == "recognized"
+    assert result["value"] == "12,750.00"
+    assert result["confidence"] == 96
+
+
+def test_total_amount_crop_keeps_low_confidence_token_for_review():
+    from backend.app.coordinate_extractor import interpret_total_amount_crop_tokens
+
+    result = interpret_total_amount_crop_tokens(
+        [{"text": "12,750.00", "confidence": 84}],
+        label_confidence=95,
+    )
+
+    assert result["status"] == "needs_review"
+    assert result["value"] is None
+    assert result["proposed_value"] == "12,750.00"
+
+
+def test_total_amount_crop_does_not_join_multiple_tokens():
+    from backend.app.coordinate_extractor import interpret_total_amount_crop_tokens
+
+    result = interpret_total_amount_crop_tokens(
+        [
+            {"text": "12,750", "confidence": 96},
+            {"text": "00", "confidence": 96},
+        ],
+        label_confidence=95,
+    )
+
+    assert result["status"] == "multiple_amount_tokens_review"
+    assert result["value"] is None
+    assert len(result["candidates"]) == 2
+
+
+def test_total_amount_crop_reports_missing_token():
+    from backend.app.coordinate_extractor import interpret_total_amount_crop_tokens
+
+    result = interpret_total_amount_crop_tokens([], label_confidence=95)
+
+    assert result["status"] == "amount_not_found"
+    assert result["value"] is None
