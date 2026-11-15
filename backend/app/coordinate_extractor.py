@@ -23,6 +23,9 @@ DEFAULT_VERTICAL_TOLERANCE = 6
 SGST_AMOUNT_CROP = (445, 235, 485, 250)
 SGST_CROP_SCALE = 5
 SGST_CROP_CONFIDENCE_THRESHOLD = 85
+TOTAL_AMOUNT_CROP = (441, 265, 490, 280)
+TOTAL_AMOUNT_CROP_SCALE = 3
+TOTAL_AMOUNT_CROP_CONFIDENCE_THRESHOLD = 85
 
 # Coordinates are in the original 500x333 sample receipt image.
 # Adjust these regions for a different receipt template.
@@ -412,6 +415,113 @@ def extract_sgst_crop_field(
     return result
 
 
+
+def interpret_total_amount_crop_tokens(
+    tokens: list[dict[str, Any]],
+    label_confidence: float,
+) -> dict[str, Any]:
+    """Interpret isolated Total Amount OCR tokens without guessing or joining."""
+    candidates = []
+    for token in tokens:
+        normalized = normalize_amount_token(token["text"])
+        if normalized is not None:
+            candidates.append(
+                {
+                    "raw": token["text"],
+                    "normalized_candidate": normalized,
+                    "confidence": token["confidence"],
+                }
+            )
+
+    if not candidates:
+        return {
+            "field": "total",
+            "value": None,
+            "status": "amount_not_found",
+            "label_confidence": label_confidence,
+            "candidates": [],
+        }
+
+    if len(candidates) > 1:
+        return {
+            "field": "total",
+            "value": None,
+            "status": "multiple_amount_tokens_review",
+            "label_confidence": label_confidence,
+            "candidates": candidates,
+        }
+
+    candidate = candidates[0]
+    confidence = candidate["confidence"]
+    status = (
+        "recognized"
+        if confidence >= TOTAL_AMOUNT_CROP_CONFIDENCE_THRESHOLD
+        else "needs_review"
+    )
+    return {
+        "field": "total",
+        "value": candidate["normalized_candidate"] if status == "recognized" else None,
+        "proposed_value": candidate["normalized_candidate"],
+        "raw_ocr_token": candidate["raw"],
+        "confidence": confidence,
+        "label_confidence": label_confidence,
+        "status": status,
+        "candidates": candidates,
+    }
+
+
+def extract_total_amount_crop_field(
+    image: Any,
+    label_words: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Read the sample Total Amount without the currency symbol, grayscale 3x PSM 6."""
+    if not label_words:
+        return {
+            "field": "total",
+            "value": None,
+            "status": "label_not_found",
+            "candidates": [],
+        }
+
+    left, top, right, bottom = TOTAL_AMOUNT_CROP
+    crop = image[top:bottom, left:right]
+    if crop.size == 0:
+        raise ValueError(f"Invalid or empty Total Amount crop: {TOTAL_AMOUNT_CROP}")
+
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    enlarged = cv2.resize(
+        gray,
+        None,
+        fx=TOTAL_AMOUNT_CROP_SCALE,
+        fy=TOTAL_AMOUNT_CROP_SCALE,
+        interpolation=cv2.INTER_CUBIC,
+    )
+    data = pytesseract.image_to_data(
+        enlarged,
+        lang="eng",
+        config="--oem 3 --psm 6",
+        output_type=Output.DICT,
+    )
+
+    tokens = []
+    for raw_text, raw_confidence in zip(data["text"], data["conf"]):
+        text = raw_text.strip()
+        try:
+            confidence = float(raw_confidence)
+        except (TypeError, ValueError):
+            continue
+        if text and confidence >= 0:
+            tokens.append({"text": text, "confidence": confidence})
+
+    result = interpret_total_amount_crop_tokens(
+        tokens,
+        label_confidence=min(word["confidence"] for word in label_words),
+    )
+    result["ocr_method"] = "grayscale 3x PSM 6"
+    result["crop"] = TOTAL_AMOUNT_CROP
+    return result
+
+
 def extract_receipt_fields(
     image: Any,
     regions: dict[str, tuple[int, int, int, int]] | None = None,
@@ -434,6 +544,11 @@ def extract_receipt_fields(
 
         if field == "sgst":
             results[field] = extract_sgst_crop_field(
+                image,
+                find_label(word_cache[cache_key], FIELD_LABELS[field]),
+            )
+        elif field == "total":
+            results[field] = extract_total_amount_crop_field(
                 image,
                 find_label(word_cache[cache_key], FIELD_LABELS[field]),
             )
