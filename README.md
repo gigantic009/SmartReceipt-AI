@@ -7,7 +7,8 @@ The project combines ideas from publicly documented commercial products and open
 ## Current implemented capabilities
 
 ### Document ingestion and extraction
-- JPG/JPEG/PNG upload with size, image-content and dimension validation.
+- JPG/JPEG/PNG/WEBP/TIFF and PDF upload with size, image-content, page-count and dimension limits.
+- Multi-page PDF text extraction (embedded text first, OCR for scanned pages) and bounded batch import.
 - OpenCV preprocessing and Tesseract OCR.
 - Legacy receipt parser plus a universal billing representation.
 - Baseline classification for receipts, invoices, hotel folios, restaurant receipts, credit notes and debit notes.
@@ -24,9 +25,12 @@ The project combines ideas from publicly documented commercial products and open
 - Receipt deletion endpoint.
 - Exact-file duplicate detection using SHA-256. This detects byte-identical files only; visually similar or altered duplicates are not detected.
 - CSV export of the document register.
+- Line-item candidates and payment-method hints, each explicitly flagged for review.
 
 ### Expense intelligence
 - Explainable keyword-based category suggestions (Travel, Food & Dining, Groceries, Shopping, Utilities, Healthcare, Office & Software).
+- Manual expense entry, vendor directory and budget records.
+- Document correction audit events and currency-safe combined receipt/expense analytics.
 - Category suggestions remain editable and are explicitly low-confidence; this is not a trained machine-learning classifier.
 - Currency-separated spend summaries by currency, category and month. Amounts in different currencies are never added together.
 
@@ -49,6 +53,11 @@ The project combines ideas from publicly documented commercial products and open
 | PATCH | /receipts/{receipt_id} | Correct supported normalized review fields |
 | DELETE | /receipts/{receipt_id} | Delete a saved document record |
 | GET | /analytics | Currency-separated spend summaries |
+| GET/POST | /expenses | List and create manual expenses |
+| DELETE | /expenses/{expense_id} | Delete a manual expense |
+| GET/POST | /vendors | List and create vendors |
+| GET/POST | /budgets | List and create budget records |
+| GET | /receipts/{receipt_id}/events | Retrieve document correction events |
 | GET | /exports/receipts.csv | Download document register as CSV |
 
 Interactive API docs: http://127.0.0.1:8000/docs
@@ -93,7 +102,7 @@ Build the frontend:
 See docs/PRODUCT_CAPABILITY_BLUEPRINT.md for the researched capability matrix, inspiration sources, implementation status and phased roadmap.
 
 Next priorities:
-1. Improve extraction correctness and add field-level evidence/confidence.
+1. Improve extraction correctness, field-level evidence/confidence and line-item review.
 2. Add robust line-item extraction and editable review UI.
 3. Add PDF/multi-page/batch ingestion and asynchronous processing.
 4. Add visual duplicate detection, statement import and receipt-to-transaction matching.
@@ -110,7 +119,8 @@ This is a development prototype, not a finished enterprise platform or tax-compl
 - Keyword categorization is a suggestion, not a trained AI model.
 - SHA-256 duplicate detection only catches exact byte-for-byte duplicates.
 - Analytics summarize only records saved in the local database.
-- Review APIs update normalized fields; a complete visual field editor and correction audit history are still planned.
+- Review APIs update normalized fields; the full visual field editor and richer correction audit UI are still planned.
+- Line-item extraction is heuristic candidate detection, not guaranteed table reconstruction. Quantity and unit price are not inferred unless visibly captured.
 - Authentication, authorization, encrypted storage, retention/deletion controls, backups, rate limiting and production monitoring are not yet implemented.
 
 Do not expose this prototype publicly or upload real personal/financial documents to GitHub. Keep uploads, OCR output, databases and private sample receipts out of version control. Country adapters are not legal advice or tax certification; fraud signals, when implemented, must be treated as review indicators rather than accusations.
