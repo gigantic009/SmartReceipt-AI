@@ -4,6 +4,8 @@ import re
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from backend.app.line_item_extractor import extract_line_items
+
 CURRENCY_MARKERS = {
     "INR": ("₹", "INR", "RS."), "USD": ("USD", "US$", "$"),
     "EUR": ("€", "EUR"), "GBP": ("£", "GBP"), "CNY": ("CNY", "RMB", "¥"),
@@ -142,6 +144,17 @@ def _document_type(text: str) -> str:
         if re.search(pattern, text, re.I): return kind
     return "unknown"
 
+
+def _payments(lines: list[str]) -> list[dict[str, Any]]:
+    methods = []
+    patterns = (("cash", r"\bcash\b"), ("card", r"\b(?:credit|debit)\s*card\b|\bvisa\b|\bmastercard\b"), ("bank_transfer", r"\b(?:bank\s*transfer|wire\s*transfer|NEFT|RTGS|IMPS)\b"), ("upi", r"\bUPI\b|@(?:ok|ybl|paytm)"), ("wallet", r"\bwallet\b|\bPayPal\b"))
+    for line in lines:
+        for method, pattern in patterns:
+            if re.search(pattern, line, re.I):
+                methods.append({"method": method, "raw_text": line, "confidence": "candidate"})
+                break
+    return methods
+
 def parse_global_document(text: str) -> dict[str, Any]:
     """Extract visible evidence into a universal shape; never invent absent values."""
     lines = _lines(text)
@@ -168,9 +181,9 @@ def parse_global_document(text: str) -> dict[str, Any]:
         "country": country, "currency": detect_currency(text, country["country_code"]),
         "amounts": {"subtotal": subtotal, "discount": discount, "charges": charges,
                     "tax_total": tax_total, "grand_total": total, "amount_paid": paid, "balance_due": balance},
-        "taxes": taxes, "line_items": [], "payments": [], "source_text": text,
+        "taxes": taxes, "line_items": extract_line_items(text), "payments": _payments(lines), "source_text": text,
         "extraction_warnings": [
-            "Line-item extraction is not enabled in this baseline.",
+            "Line-item rows are heuristic candidates; verify each description and amount.",
             "Country and currency detection are heuristic; review medium, ambiguous or unknown results.",
             "Tax extraction is not tax-compliance verification."
         ]}
