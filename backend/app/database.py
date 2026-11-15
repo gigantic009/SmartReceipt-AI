@@ -150,8 +150,27 @@ def update_receipt(receipt_id: str, fields: dict[str, Any],
         return False
     updates["updated_at"] = datetime.now(timezone.utc).isoformat()
     initialize_database(database_path)
-    assignments = ", ".join(f"{key} = ?" for key in updates)
     with _connect(database_path) as connection:
+        row = connection.execute(
+            "SELECT global_json FROM receipts WHERE receipt_id = ?", (receipt_id,)
+        ).fetchone()
+        if row is None:
+            return False
+        try:
+            global_document = json.loads(row["global_json"] or "{}")
+        except (TypeError, json.JSONDecodeError):
+            global_document = {}
+        for key, value in updates.items():
+            if key == "merchant_name":
+                global_document["merchant_name_candidate"] = value
+            elif key == "document_date":
+                global_document["issue_date_raw"] = value
+            elif key == "currency_code":
+                global_document.setdefault("currency", {})["currency_code"] = value
+            elif key == "category":
+                global_document["category"] = value
+        updates["global_json"] = json.dumps(global_document, ensure_ascii=False)
+        assignments = ", ".join(f"{key} = ?" for key in updates)
         cursor = connection.execute(
             f"UPDATE receipts SET {assignments} WHERE receipt_id = ?",
             (*updates.values(), receipt_id),
