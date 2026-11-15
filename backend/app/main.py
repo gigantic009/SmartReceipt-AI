@@ -15,6 +15,7 @@ from PIL import Image, UnidentifiedImageError
 from backend.app.database import (save_receipt, list_receipts, get_receipt, update_receipt, delete_receipt, find_duplicate, get_analytics, add_receipt_event, get_receipt_events, create_expense, list_expenses, delete_expense, create_vendor, list_vendors, create_budget, list_budgets)
 from backend.app.expense_intelligence import suggest_category
 from backend.app.document_ingestion import extract_document_text
+from backend.app.reporting import build_financial_workbook, build_financial_pdf
 from backend.app.image_security import validate_image_dimensions
 from backend.app.image_processor import (
     PreprocessConfig,
@@ -480,4 +481,21 @@ def budget_create(data: dict):
     if data.get("period", "monthly") not in {"weekly", "monthly", "quarterly", "yearly"}:
         raise HTTPException(status_code=400, detail="period must be weekly, monthly, quarterly or yearly.")
     return create_budget({**data, "amount": format(amount, "f"), "currency_code": currency})
+
+@app.get("/exports/finance.xlsx")
+def export_finance_workbook():
+    return StreamingResponse(
+        iter([build_financial_workbook()]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=smartreceipt-financial-report.xlsx"},
+    )
+
+
+@app.get("/reports/summary.pdf")
+def export_financial_pdf():
+    return StreamingResponse(
+        iter([build_financial_pdf()]),
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=smartreceipt-financial-summary.pdf"},
+    )
 
