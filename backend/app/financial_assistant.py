@@ -17,7 +17,7 @@ def answer_financial_question(question: str) -> dict:
     currency = next((code for code in CURRENCY_CODES if re.search(r"\b" + code + r"\b", q, re.I)), None)
     category = next((name for name in CATEGORIES if name.casefold() in q.casefold()), None)
 
-    if any(word in q.casefold() for word in ("review", "uncertain", "needs attention", "pending")):
+    if re.search(r"\\b(review|uncertain|pending)\\b|needs attention", q, re.I):
         records = list_receipts(status="review_required", limit=50)
         return {
             "answer": f"{len(records)} saved document(s) currently need review.",
