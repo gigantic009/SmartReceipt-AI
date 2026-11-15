@@ -231,6 +231,7 @@ def update_receipt(receipt_id: str, fields: dict[str, Any],
 def delete_receipt(receipt_id: str, database_path: str | Path = DEFAULT_DATABASE_PATH) -> bool:
     initialize_database(database_path)
     with _connect(database_path) as connection:
+        connection.execute("DELETE FROM receipt_events WHERE receipt_id = ?", (receipt_id,))
         cursor = connection.execute("DELETE FROM receipts WHERE receipt_id = ?", (receipt_id,))
         connection.commit()
         return cursor.rowcount > 0
