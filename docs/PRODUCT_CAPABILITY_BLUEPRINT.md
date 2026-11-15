@@ -12,24 +12,30 @@ Build an evidence-first financial document intelligence platform. The product co
 | Multi-stage image preprocessing and OCR | Veryfi, open-source OCR projects | Existing Tesseract/OpenCV |
 | Structured merchant, date, currency and totals | Zoho Autoscan, ReceiptIQ | Partial |
 | Tax and payment extraction | Veryfi document schema | Partial |
-| Line-item extraction | Veryfi, Dext | Planned |
+| Line-item extraction | Veryfi, Dext | Heuristic candidates added; full table reconstruction planned |
 | Field-level confidence and evidence | Veryfi, evidence-first open-source projects | Partial; OCR average only |
-| Human correction and review queue | Dext, Expensify | Review fields API added; full UI planned |
+| Human correction and review queue | Dext, Expensify | Correction UI, API and event history baseline added |
 | Persistent searchable document register | ReceiptIQ, SpendLens | API + UI baseline added |
 | Exact-file duplicate detection | Veryfi, invoice-intelligence projects | SHA-256 baseline added |
 | Explainable expense category suggestions | Dext, Zoho | Keyword baseline added |
 | Currency-separated spend analytics | Open-source expense trackers | Baseline API + UI added |
 | CSV export | Expense tracker projects | Added |
-| XLSX/PDF report generation | SpendLens, Receipt Tracker | Planned |
+| XLSX/PDF report generation | SpendLens, Receipt Tracker | Added; currency-separated reports |
 | Statement import and receipt matching | Receipt Tracker, Ramp, Expensify | Planned |
 | Supplier rules and auto-categorization | Dext | Planned |
-| Budgets, recurring expenses and alerts | Open-source expense trackers | Planned |
+| Budgets, recurring expenses and alerts | Open-source expense trackers | Budget records and utilization alerts added; recurring expenses planned |
 | Email / cloud inbox ingestion | Dext, Receipt Tracker | Planned |
-| Natural-language financial assistant with cited records | Receipt Intelligence | Planned |
+| Natural-language financial assistant with cited records | Receipt Intelligence | Bounded ledger Q&A and evidence payloads added; generative conversational layer planned |
 | Fraud, tampering, screenshot and blur analysis | Veryfi | Planned; must be treated as review signals, not fraud verdicts |
 | Authentication, workspaces, audit and retention | Enterprise document platforms | Required before multi-user/public deployment |
 
 ## Current backend API additions
+
+- `POST /upload-document` and `POST /upload-batch`: PDF/image and bounded batch ingestion.
+- `POST /assistant/query`: deterministic financial question answering over local saved records.
+- `GET /exports/finance.xlsx` and `GET /reports/summary.pdf`: spreadsheet and PDF reports.
+- `GET /budgets/status`: period-based budget utilization and threshold status.
+- Optional local Ollama extraction enrichment is disabled by default and accepts only OCR-visible candidate fields.
 
 - GET /receipts: searchable, filterable, paginated document register.
 - GET /receipts/{receipt_id}: record details including OCR text.
@@ -65,6 +71,7 @@ Build an evidence-first financial document intelligence platform. The product co
 - Visual duplicate detection and cross-document duplicate review.
 - Full-text search and document filters.
 - XLSX and PDF report exports.
+- Locale-aware date normalization and grounded ledger question answering.
 
 ### P2 — Expense management
 - Manual expenses and refunds.
