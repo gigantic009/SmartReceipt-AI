@@ -91,7 +91,7 @@ def test_receipt_library_search_update_duplicate_and_analytics(tmp_path):
     summary = get_analytics(database_path)
     assert summary["document_count"] == 1
     assert summary["spend_by_currency"]["INR"] == 1200.0
-    assert summary["spend_by_category"]["Travel"] == 1200.0
+    assert summary["spend_by_category"]["Travel"]["INR"] == 1200.0
 
 
 def test_manual_expense_vendor_budget_and_combined_analytics(tmp_path):
@@ -153,3 +153,13 @@ def test_vendor_lookup_is_case_insensitive(tmp_path):
     vendor = get_vendor_by_name("ACME SUPPLIES", database_path)
     assert vendor["default_category"] == "Office"
     assert get_vendor_by_name("Unknown Vendor", database_path) is None
+
+
+def test_analytics_never_adds_different_currencies(tmp_path):
+    from backend.app.database import create_expense, get_analytics
+    database_path = tmp_path / "fx.sqlite3"
+    create_expense({"description": "Lunch", "amount": "100", "currency_code": "INR", "category": "Food"}, database_path)
+    create_expense({"description": "Dinner", "amount": "10", "currency_code": "USD", "category": "Food"}, database_path)
+    summary = get_analytics(database_path)
+    assert summary["spend_by_category"]["Food"] == {"INR": 100.0, "USD": 10.0}
+    assert summary["monthly_spend"][summary["monthly_spend"].keys().__iter__().__next__()] == {"INR": 100.0, "USD": 10.0}
