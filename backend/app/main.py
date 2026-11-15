@@ -343,6 +343,8 @@ async def _process_document_upload(file: UploadFile) -> dict:
             extraction = extract_document_text(data, filename)
         except ValueError as error:
             raise HTTPException(status_code=400, detail=str(error)) from error
+        except RuntimeError as error:
+            raise HTTPException(status_code=503, detail=str(error)) from error
         ocr_text = extraction["text"]
         if not ocr_text:
             raise HTTPException(status_code=422, detail="No readable text was detected.")
@@ -352,18 +354,37 @@ async def _process_document_upload(file: UploadFile) -> dict:
         document = enrich_with_local_model(document, ocr_text)
         document["page_count"] = extraction["page_count"]
         document["page_extraction"] = [
-            {"page": p["page"], "method": p["method"], "text_length": len(p["text"])}
+            {
+                "page": p["page"],
+                "method": p["method"],
+                "text_length": len(p["text"]),
+                "word_count": p.get("word_count", len(p["text"].split())),
+                "average_confidence": p.get("average_confidence"),
+            }
             for p in extraction["pages"]
         ]
         category = _suggest_document_category(document, ocr_text)
         document["category"] = category["category"]
         document["category_suggestion"] = category
         validation = validate_global_document(document)
-        review_required = validation["status"] != "valid" or duplicate is not None
+        review_required = (
+            validation["status"] != "valid"
+            or duplicate is not None
+            or (
+                extraction.get("average_confidence") is not None
+                and extraction["average_confidence"] < 55
+            )
+        )
         status = "review_required" if review_required else "success"
         ocr_summary = {
-            "average_confidence": None,
+            "average_confidence": extraction.get("average_confidence"),
             "word_count": len(ocr_text.split()),
+            "ocr_word_count": extraction.get("ocr_word_count", 0),
+            "confidence_method": (
+                "tesseract_word_confidence"
+                if extraction.get("average_confidence") is not None
+                else "not_applicable_embedded_text"
+            ),
             "review_required": review_required,
             "page_count": extraction["page_count"],
             "extraction_methods": extraction["methods"],

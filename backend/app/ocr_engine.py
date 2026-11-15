@@ -103,3 +103,44 @@ def extract_text_with_confidence(image_path: str | Path) -> list[dict]:
         })
 
     return results
+
+
+def extract_text_with_confidence_from_pil_image(
+    image: Image.Image, languages: str | None = None
+) -> dict:
+    """Return OCR text and word-level confidence for an in-memory image.
+
+    Tesseract confidence is a recognition signal, not a probability that
+    extracted financial fields are correct.
+    """
+    _configure_tesseract()
+    lang = languages or os.getenv("TESSERACT_LANGUAGES", "eng")
+    config = "--oem 3 --psm 6"
+    text = pytesseract.image_to_string(image, lang=lang, config=config).strip()
+    data = pytesseract.image_to_data(
+        image, lang=lang, config=config, output_type=pytesseract.Output.DICT
+    )
+    words = []
+    for index, raw_word in enumerate(data["text"]):
+        word = raw_word.strip()
+        if not word:
+            continue
+        try:
+            confidence = float(data["conf"][index])
+        except (TypeError, ValueError):
+            continue
+        if confidence < 0:
+            continue
+        words.append({
+            "word": word,
+            "confidence": confidence,
+            "left": data["left"][index],
+            "top": data["top"][index],
+            "width": data["width"][index],
+            "height": data["height"][index],
+        })
+    average = (
+        round(sum(word["confidence"] for word in words) / len(words), 2)
+        if words else None
+    )
+    return {"text": text, "words": words, "average_confidence": average}

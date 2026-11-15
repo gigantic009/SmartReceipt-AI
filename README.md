@@ -41,7 +41,7 @@ SmartReceipt AI is a portfolio-grade, local-first financial document intelligenc
 | Area | Included capability |
 |---|---|
 | Document intake | JPG, JPEG, PNG, WEBP, TIFF and PDF; multi-page PDFs; bounded batch upload |
-| Text extraction | Embedded PDF text first; Tesseract OCR for scanned pages and images |
+| Text extraction | Embedded PDF text first; Tesseract OCR for scanned pages and images, with word-level confidence summaries for OCR pages |
 | Billing interpretation | Candidate merchant, date, currency, totals, tax breakdown and document type |
 | Validation | Reconciliation checks, ambiguity flags and review-required status |
 | Document library | Search, pagination, saved records, corrections and deletion |
@@ -51,7 +51,7 @@ SmartReceipt AI is a portfolio-grade, local-first financial document intelligenc
 | Financial assistant | Bounded, deterministic questions grounded in saved local ledger data |
 | Optional local AI | Ollama enrichment, off by default; evidence-gated suggestions only |
 
-The parser supports common billing patterns and multiple currency/tax clues. It is a heuristic extraction system, not a certified tax engine or a guarantee of correct OCR.
+The parser supports common billing patterns and multiple currency/tax clues. OCR confidence is an average Tesseract word-recognition score for OCR-processed pages; embedded PDF text has no OCR confidence score. This is not a calibrated probability or a guarantee of field correctness. The parser is heuristic, not a certified tax engine.
 
 ## Product preview
 
@@ -285,7 +285,7 @@ For request/response schemas, use the interactive OpenAPI docs at `/docs`.
 
 ## Known limitations
 
-- OCR and field extraction are heuristic; low-quality scans, unusual layouts and handwritten text can fail.
+- OCR and field extraction are heuristic; low-quality scans, unusual layouts and handwritten text can fail. OCR confidence is a recognition signal, not a calibrated probability that parsed fields are correct.
 - Country, currency, tax and document-type clues are not authoritative tax determinations.
 - Line-item extraction is conservative candidate detection, not guaranteed table reconstruction.
 - Category suggestions are rule-based, not a trained classifier.
