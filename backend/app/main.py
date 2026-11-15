@@ -14,6 +14,7 @@ from PIL import Image, UnidentifiedImageError
 
 from backend.app.database import (save_receipt, list_receipts, get_receipt, update_receipt, delete_receipt, find_duplicate, get_analytics, add_receipt_event, get_receipt_events, create_expense, list_expenses, delete_expense, create_vendor, list_vendors, create_budget, list_budgets, get_budget_status)
 from backend.app.expense_intelligence import suggest_category
+from backend.app.ai_enrichment import enrich_with_local_model
 from backend.app.document_ingestion import extract_document_text
 from backend.app.reporting import build_financial_workbook, build_financial_pdf
 from backend.app.image_security import validate_image_dimensions
@@ -142,6 +143,7 @@ async def upload_receipt(file: UploadFile = File(...)):
         parsed_receipt = parse_receipt(ocr_text)
         validation = validate_parsed_receipt(parsed_receipt)
         global_document = parse_global_document(ocr_text)
+        global_document = enrich_with_local_model(global_document, ocr_text)
         global_validation = validate_global_document(global_document)
         category = suggest_category(global_document.get("merchant_name_candidate"), ocr_text)
         global_document["category"] = category["category"]
@@ -329,6 +331,7 @@ async def _process_document_upload(file: UploadFile) -> dict:
         parsed = parse_receipt(ocr_text)
         legacy_validation = validate_parsed_receipt(parsed)
         document = parse_global_document(ocr_text)
+        document = enrich_with_local_model(document, ocr_text)
         document["page_count"] = extraction["page_count"]
         document["page_extraction"] = [
             {"page": p["page"], "method": p["method"], "text_length": len(p["text"])}
