@@ -143,7 +143,7 @@ tests/
 - Session cookies are HttpOnly and SameSite=Strict. Production must use HTTPS and `COOKIE_SECURE=true`.
 - Stored images are not exposed by static hosting; image routes perform receipt ownership checks.
 - Review events preserve who changed a receipt, the prior/new status, and before/after field values.
-- The OCR engine is not a guarantee of correctness. A human must verify amounts against the source image.
+- The OCR engine is not a guarantee of correctness. A human must verify amounts against the source image. The reconciliation endpoint ranks candidate receipts by amount, date, and merchant text, explains the evidence, and never confirms a match automatically.
 - SQLite files and uploaded images need encrypted storage, tested backups, retention policy, and operational monitoring before handling real customer financial data.
 
 ## Roadmap
