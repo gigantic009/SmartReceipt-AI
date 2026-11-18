@@ -1,0 +1,2 @@
+{"ocr_text":"Example Garden Lodge\nDate: 18 Sep 2026\nSubtotal 6850.00\nCGST 171.25\nSGST 171.25\nTotal 7192.50","expected":{"merchant":"Example Garden Lodge","date":"18 Sep 2026","subtotal":"6850.00","cgst":"171.25","sgst":"171.25","total":"7192.50"}}
+{"ocr_text":"SUNRISE HOTEL\nInvoice No: HB2026101501\nDate: 16 Oct 2026\nCGST 684.00\nTotal Amount 12750.00","expected":{"merchant":"SUNRISE HOTEL","bill_number":"HB2026101501","date":"16 Oct 2026","cgst":"684.00","total":"12750.00"}}
