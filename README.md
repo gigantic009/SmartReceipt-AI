@@ -124,3 +124,9 @@ requirements.txt
 ## Privacy and security
 
 Do not commit real receipts, personal data, API keys, local database files, or environment secrets. Generated upload, preprocessing, and database directories are excluded by `.gitignore`. The current local SQLite database is not encrypted and must not be used for sensitive production data. Before deployment, add authentication, per-user authorization, retention/deletion controls, encrypted storage, and secure backups.
+
+## Full-stack upgrade roadmap
+
+See [docs/FULLSTACK_UPGRADE_PLAN.md](docs/FULLSTACK_UPGRADE_PLAN.md) for the staged plan covering authentication and user isolation, paginated receipt history, an auditable human-review workflow, extraction-quality evaluation, a responsive frontend, and deployment.
+
+**Important:** these are planned upgrades, not current MVP capabilities. The current API still has no authenticated user accounts or user-level receipt ownership. Do not expose it publicly with real receipt data until the P0 security work is implemented and tested.
