@@ -9,7 +9,7 @@ import re
 import uuid
 
 from fastapi import Body, Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 
@@ -96,6 +96,20 @@ def _safe_stored_path(directory: Path, filename: str) -> Path:
     if target.parent != root:
         raise HTTPException(status_code=404, detail="Stored file not found.")
     return target
+
+
+
+@app.middleware("http")
+async def same_origin_state_change_guard(request: Request, call_next):
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        origin = request.headers.get("origin")
+        if origin:
+            from urllib.parse import urlsplit
+            supplied = urlsplit(origin)
+            expected = urlsplit(str(request.base_url))
+            if supplied.scheme != expected.scheme or supplied.netloc != expected.netloc:
+                return JSONResponse(status_code=403, content={"detail": "Cross-origin state changes are not allowed."})
+    return await call_next(request)
 
 
 @app.get("/")
@@ -330,7 +344,7 @@ def receipt_image(
     target = _safe_stored_path(directory, filename)
     if not target.is_file():
         raise HTTPException(status_code=404, detail="Receipt image not found.")
-    return FileResponse(target, media_type="image/jpeg" if target.suffix.lower() in {".jpg", ".jpeg"} else "image/png")
+    return FileResponse(target, media_type="image/jpeg" if target.suffix.lower() in {".jpg", ".jpeg"} else "image/png", headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
 
 
 @app.patch("/receipts/{receipt_id}/review")
