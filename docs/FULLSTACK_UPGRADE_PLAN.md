@@ -37,7 +37,7 @@ Acceptance: review edits are auditable, raw OCR remains recoverable, and status 
 
 ### P2 — Extraction quality and evaluation
 
-- [ ] Create a versioned, synthetic/redacted evaluation dataset with ground-truth merchant, date, subtotal, tax, total, currency, and payment method. A field-level evaluation harness is implemented.
+- [x] Add a field-level evaluation harness, CLI runner, and small synthetic smoke-test dataset. A representative, versioned/redacted ground-truth benchmark remains required.
 - [ ] Measure field-level exact match, normalized numeric error, date accuracy, validation precision/recall, and review-flag precision/recall.
 - [ ] Report metrics by image quality, layout, language, and receipt source; do not report a single accuracy number without dataset details.
 - [ ] Add regression tests for every parser correction and representative OCR failure.
