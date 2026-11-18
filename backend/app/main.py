@@ -43,7 +43,7 @@ from backend.app.image_processor import (
     save_image,
 )
 from backend.app.ocr_engine import extract_text, extract_text_with_confidence
-from backend.app.receipt_parser import validate_parsed_receipt
+from backend.app.receipt_parser import normalize_receipt_amount, validate_parsed_receipt
 from backend.app.structured_extractor import extract_receipt_fields
 from backend.app.reconciliation import suggest_matches
 
@@ -380,6 +380,15 @@ def update_receipt_review(receipt_id: str, payload: dict = Body(...), user: dict
         if len(text) > 200:
             raise HTTPException(status_code=400, detail=f"{key} is too long.")
         clean_fields[key] = text
+    if status == "approved":
+        existing = get_receipt(receipt_id, user["id"], DATABASE_PATH)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Receipt not found.")
+        proposed_total = clean_fields.get("total", (existing.get("receipt") or {}).get("total"))
+        normalized_total = normalize_receipt_amount(str(proposed_total or ""))
+        if normalized_total is None:
+            raise HTTPException(status_code=422, detail="A valid verified total is required before approval.")
+        clean_fields["total"] = normalized_total
     try:
         result = review_receipt(receipt_id, user["id"], status=status, fields=clean_fields, database_path=DATABASE_PATH)
     except ValueError as error:
