@@ -185,7 +185,7 @@ def active_sessions(user: dict = Depends(get_current_user)):
 
 
 @app.post("/auth/logout-all")
-def logout_all(user: dict = Depends(get_current_user), request: Request = None, response: Response = None):
+def logout_all(response: Response, user: dict = Depends(get_current_user)):
     revoked = revoke_all_sessions(user["id"], DATABASE_PATH)
     response.delete_cookie("sr_session", path="/", httponly=True,
         secure=_session_cookie_options()["secure"], samesite="strict")
