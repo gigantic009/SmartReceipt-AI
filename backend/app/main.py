@@ -8,6 +8,7 @@ import uuid
 
 from fastapi import Body, Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 
 from backend.app.auth import verify_password
@@ -315,3 +316,6 @@ def remove_receipt(receipt_id: str, user: dict = Depends(get_current_user)):
         target = _safe_stored_path(directory, filename)
         target.unlink(missing_ok=True)
     return {"ok": True, "receipt_id": receipt_id}
+
+
+app.mount("/app", StaticFiles(directory=PROJECT_ROOT / "frontend", html=True), name="frontend")
