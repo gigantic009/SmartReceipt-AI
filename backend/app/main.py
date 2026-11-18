@@ -41,7 +41,8 @@ from backend.app.image_processor import (
     save_image,
 )
 from backend.app.ocr_engine import extract_text, extract_text_with_confidence
-from backend.app.receipt_parser import parse_receipt, validate_parsed_receipt
+from backend.app.receipt_parser import validate_parsed_receipt
+from backend.app.structured_extractor import extract_receipt_fields
 from backend.app.reconciliation import suggest_matches
 
 logger = logging.getLogger("smartreceipt")
@@ -217,7 +218,7 @@ async def upload_receipt(file: UploadFile = File(...), user: dict = Depends(get_
         if not ocr_text.strip():
             raise HTTPException(status_code=422, detail="No readable text was detected in this receipt.")
 
-        parsed_receipt = parse_receipt(ocr_text)
+        parsed_receipt, extraction_metadata = extract_receipt_fields(ocr_text)
         validation = validate_parsed_receipt(parsed_receipt)
         confidence_items = extract_text_with_confidence(processed_path)
         average_confidence = (
@@ -228,12 +229,14 @@ async def upload_receipt(file: UploadFile = File(...), user: dict = Depends(get_
             validation["overall_status"] != "valid"
             or average_confidence is None
             or average_confidence < 85
+            or extraction_metadata.get("requires_human_review", False)
         )
         response_status = "review_required" if review_required else "success"
         ocr_summary = {
             "average_confidence": average_confidence,
             "word_count": len(confidence_items),
             "review_required": review_required,
+            "extractor": extraction_metadata,
         }
         save_receipt(
             receipt_id=receipt_id, user_id=user["id"],
