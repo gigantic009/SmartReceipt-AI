@@ -15,6 +15,10 @@ client = TestClient(app)
 
 
 def test_auth_lifecycle_and_static_workspace():
+    blocked = client.post("/auth/register", headers={"Origin": "https://attacker.example"}, json={
+        "name": "Blocked", "email": "blocked@example.com", "password": "long-password-123"
+    })
+    assert blocked.status_code == 403
     anonymous = client.get("/receipts")
     assert anonymous.status_code == 401
     registered = client.post("/auth/register", json={
