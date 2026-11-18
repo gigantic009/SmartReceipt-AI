@@ -9,6 +9,7 @@ def test_save_receipt_persists_structured_result(tmp_path):
 
     save_receipt(
         receipt_id="receipt-test-001",
+        user_id=None,
         original_filename="receipt-test-001.jpg",
         processed_filename="receipt-test-001.png",
         status="review_required",
@@ -43,6 +44,7 @@ def test_save_receipt_rejects_duplicate_ids(tmp_path):
     database_path = tmp_path / "receipts.sqlite3"
     values = {
         "receipt_id": "duplicate-id",
+        "user_id": None,
         "original_filename": "original.jpg",
         "processed_filename": "processed.png",
         "status": "review_required",
