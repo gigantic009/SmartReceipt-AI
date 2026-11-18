@@ -28,7 +28,9 @@ def test_auth_lifecycle_and_static_workspace():
     assert "sr_session" in registered.cookies
     assert client.get("/auth/me").status_code == 200
     assert len(client.get("/auth/sessions").json()["sessions"]) == 1
-    assert client.get("/receipts").json()["total"] == 0
+    history_response = client.get("/receipts")
+    assert history_response.json()["total"] == 0
+    assert history_response.headers["Cache-Control"] == "private, no-store"
     workspace = client.get("/app/")
     assert workspace.status_code == 200
     assert "Content-Security-Policy" in workspace.headers
