@@ -56,6 +56,9 @@ def test_receipt_detail_and_review_are_owner_scoped():
     assert other_client.get("/receipts/private-receipt").status_code == 404
     assert other_client.patch("/receipts/private-receipt/review",
         json={"status":"approved","fields":{"total":"999.00"}}).status_code == 404
+    invalid_approval = owner_client.patch("/receipts/private-receipt/review",
+        json={"status":"approved","fields":{"total":"not-an-amount"}})
+    assert invalid_approval.status_code == 422
     approved = owner_client.patch("/receipts/private-receipt/review",
         json={"status":"approved","fields":{"total":"50.50"}})
     assert approved.status_code == 200
