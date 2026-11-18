@@ -113,6 +113,9 @@ async def same_origin_state_change_guard(request: Request, call_next):
             if supplied.scheme != expected.scheme or supplied.netloc != expected.netloc:
                 return JSONResponse(status_code=403, content={"detail": "Cross-origin state changes are not allowed."})
     response = await call_next(request)
+    if request.url.path.startswith(("/auth", "/receipts")):
+        response.headers.setdefault("Cache-Control", "private, no-store")
+        response.headers.setdefault("Pragma", "no-cache")
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
