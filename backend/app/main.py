@@ -26,6 +26,8 @@ from backend.app.database import (
     get_session_user,
     initialize_database,
     list_receipts,
+    list_sessions,
+    revoke_all_sessions,
     list_review_events,
     list_reconciliation_receipts,
     record_auth_failure,
@@ -174,6 +176,20 @@ def logout(request: Request, response: Response):
 @app.get("/auth/me")
 def me(user: dict = Depends(get_current_user)):
     return {"user": user}
+
+
+
+@app.get("/auth/sessions")
+def active_sessions(user: dict = Depends(get_current_user)):
+    return {"sessions": list_sessions(user["id"], DATABASE_PATH)}
+
+
+@app.post("/auth/logout-all")
+def logout_all(user: dict = Depends(get_current_user), request: Request = None, response: Response = None):
+    revoked = revoke_all_sessions(user["id"], DATABASE_PATH)
+    response.delete_cookie("sr_session", path="/", httponly=True,
+        secure=_session_cookie_options()["secure"], samesite="strict")
+    return {"ok": True, "revoked_sessions": revoked}
 
 
 @app.post("/upload-receipt", status_code=201)
