@@ -23,6 +23,7 @@ def test_auth_lifecycle_and_static_workspace():
     assert registered.status_code == 201
     assert "sr_session" in registered.cookies
     assert client.get("/auth/me").status_code == 200
+    assert len(client.get("/auth/sessions").json()["sessions"]) == 1
     assert client.get("/receipts").json()["total"] == 0
     assert client.get("/app/").status_code == 200
     assert client.post("/auth/logout").status_code == 200
