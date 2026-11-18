@@ -1,5 +1,7 @@
 from pathlib import Path
 import hashlib
+import csv
+import io
 import json
 import logging
 import os
@@ -24,6 +26,8 @@ from backend.app.database import (
     get_session_user,
     initialize_database,
     list_receipts,
+    list_review_events,
+    list_reconciliation_receipts,
     record_auth_failure,
     revoke_session,
     review_receipt,
@@ -38,6 +42,7 @@ from backend.app.image_processor import (
 )
 from backend.app.ocr_engine import extract_text, extract_text_with_confidence
 from backend.app.receipt_parser import parse_receipt, validate_parsed_receipt
+from backend.app.reconciliation import suggest_matches
 
 logger = logging.getLogger("smartreceipt")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -259,6 +264,50 @@ def receipt_history(
     return list_receipts(user["id"], page=page, page_size=page_size, query=q, database_path=DATABASE_PATH)
 
 
+
+@app.get("/receipts/export.csv")
+def export_receipt_history(user: dict = Depends(get_current_user)):
+    records = list_reconciliation_receipts(user["id"], limit=500, database_path=DATABASE_PATH)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["receipt_id", "merchant", "date", "subtotal", "tax", "total",
+                     "currency", "payment_method", "status", "created_at"])
+    for item in records:
+        receipt = item.get("receipt") or {}
+        values = [
+            item["receipt_id"], receipt.get("merchant"), receipt.get("date"),
+            receipt.get("subtotal"), receipt.get("tax"), receipt.get("total"),
+            receipt.get("currency"), receipt.get("payment_method"),
+            item["status"], item["created_at"],
+        ]
+        safe = []
+        for value in values:
+            cell = "" if value is None else str(value)
+            if cell.lstrip().startswith(("=", "+", "-", "@")):
+                cell = "'" + cell
+            safe.append(cell)
+        writer.writerow(safe)
+    return Response(
+        content="\\ufeff" + output.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": 'attachment; filename="smartreceipt-history.csv"'},
+    )
+
+
+@app.post("/reconciliation/suggest")
+def reconciliation_suggestions(payload: dict, user: dict = Depends(get_current_user)):
+    lines = payload.get("lines")
+    if not isinstance(lines, list) or not 1 <= len(lines) <= 200:
+        raise HTTPException(status_code=400, detail="Provide between 1 and 200 statement lines.")
+    for line in lines:
+        if not isinstance(line, dict) or not line.get("amount") or not line.get("date"):
+            raise HTTPException(status_code=400, detail="Each statement line needs amount and date.")
+    receipts = list_reconciliation_receipts(user["id"], limit=500, database_path=DATABASE_PATH)
+    return {
+        "suggestions": suggest_matches(lines, receipts),
+        "notice": "Suggestions are evidence-ranked only. No receipt is automatically matched or approved.",
+    }
+
 @app.get("/receipts/{receipt_id}")
 def receipt_detail(receipt_id: str, user: dict = Depends(get_current_user)):
     receipt = get_receipt(receipt_id, user["id"], DATABASE_PATH)
@@ -305,6 +354,15 @@ def update_receipt_review(receipt_id: str, payload: dict = Body(...), user: dict
     if not result:
         raise HTTPException(status_code=404, detail="Receipt not found.")
     return result
+
+
+
+@app.get("/receipts/{receipt_id}/review-history")
+def receipt_review_history(receipt_id: str, user: dict = Depends(get_current_user)):
+    events = list_review_events(receipt_id, user["id"], database_path=DATABASE_PATH)
+    if events is None:
+        raise HTTPException(status_code=404, detail="Receipt not found.")
+    return {"events": events}
 
 
 @app.delete("/receipts/{receipt_id}")
