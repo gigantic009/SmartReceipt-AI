@@ -100,11 +100,16 @@ All receipt endpoints and `/auth/me` require a valid session.
 | POST | `/auth/login` | Sign in |
 | POST | `/auth/logout` | Revoke current session |
 | GET | `/auth/me` | Current account |
+| GET | `/auth/sessions` | List active sessions without exposing session tokens |
+| POST | `/auth/logout-all` | Revoke every session for the current account |
 | POST | `/upload-receipt` | Upload, OCR, validate, and save a private receipt |
 | GET | `/receipts` | Paginated owned history; supports `page`, `page_size`, `q` |
+| GET | `/receipts/export.csv` | Export up to 500 owned receipt records |
+| POST | `/reconciliation/suggest` | Rank possible statement matches with evidence; never auto-confirms |
 | GET | `/receipts/{id}` | Owned receipt detail |
 | GET | `/receipts/{id}/image?kind=original` | Owned original/processed image |
 | PATCH | `/receipts/{id}/review` | Edit allowed fields and approve/reject with audit event |
+| GET | `/receipts/{id}/review-history` | Read the receipt's owned review audit events |
 | DELETE | `/receipts/{id}` | Delete owned record and images |
 
 Review request example:
