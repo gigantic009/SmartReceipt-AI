@@ -1,6 +1,6 @@
 import sqlite3
 
-from backend.app.auth import hash_password, verify_password
+from backend.app.auth import hash_password, token_digest, verify_password
 from backend.app.database import (
     create_session, create_user, get_session_user, initialize_database,
     list_receipts, review_receipt, save_receipt,
@@ -14,7 +14,10 @@ def test_scrypt_password_hash_and_opaque_session(tmp_path):
     assert not verify_password("wrong password", hash_password_for_user(path, "a@example.com"))
     token = create_session(user["id"], path)
     assert get_session_user(token, path)["id"] == user["id"]
-    assert token not in open_database(path).read_text() if False else True
+    with sqlite3.connect(path) as connection:
+        stored_hash = connection.execute("SELECT token_hash FROM sessions").fetchone()[0]
+    assert stored_hash == token_digest(token)
+    assert stored_hash != token
 
 
 def hash_password_for_user(path, email):
