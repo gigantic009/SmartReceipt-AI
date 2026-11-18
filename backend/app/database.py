@@ -297,3 +297,22 @@ def list_reconciliation_receipts(user_id: int, *, limit: int = 500,
         "receipt": json.loads(row["receipt_json"]),
         "created_at": row["created_at"],
     } for row in rows]
+
+
+def list_sessions(user_id: int, database_path: str | Path = DEFAULT_DATABASE_PATH) -> list[dict[str, Any]]:
+    initialize_database(database_path)
+    now = datetime.now(timezone.utc).isoformat()
+    with _connect(database_path) as connection:
+        rows = connection.execute("""
+            SELECT created_at, expires_at FROM sessions
+            WHERE user_id = ? AND expires_at > ?
+            ORDER BY created_at DESC
+        """, (user_id, now)).fetchall()
+    return [{"created_at": row["created_at"], "expires_at": row["expires_at"]} for row in rows]
+
+
+def revoke_all_sessions(user_id: int, database_path: str | Path = DEFAULT_DATABASE_PATH) -> int:
+    initialize_database(database_path)
+    with _connect(database_path) as connection:
+        cursor = connection.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+        return cursor.rowcount
