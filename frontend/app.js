@@ -149,6 +149,36 @@ $("uploadForm").onsubmit = async event => {
 $("receiptFile").onchange = () => {
   $("fileLabel").textContent = $("receiptFile").files[0]?.name || "Choose receipt image";
 };
+
+$("exportHistoryBtn").onclick = () => { window.location.href = "/receipts/export.csv"; };
+$("matchForm").onsubmit = async event => {
+  event.preventDefault();
+  $("matchResults").textContent = "Comparing amount, date and merchant evidence…";
+  try {
+    const result = await api("/reconciliation/suggest", {
+      method:"POST",
+      body:JSON.stringify({lines:[{
+        description:$("statementDescription").value,
+        amount:$("statementAmount").value,
+        date:$("statementDate").value
+      }]})
+    });
+    const candidates = result.suggestions[0]?.candidates || [];
+    $("matchResults").innerHTML = candidates.length
+      ? candidates.map(candidate => '<button class="receipt-row" type="button" data-match-open="' +
+        esc(candidate.receipt_id) + '"><span><strong>' + esc(candidate.merchant || "Unknown merchant") +
+        '</strong><small>' + esc(candidate.receipt_date || "Date unavailable") + ' · ' +
+        esc(candidate.receipt_total || "Amount unavailable") + ' · ' +
+        esc(candidate.reasons.join(" · ")) + '</small></span><span class="status">' +
+        esc(candidate.confidence) + '%</span></button>').join("")
+      : '<p class="muted">No strong candidates. You can still inspect your receipt history manually.</p>';
+  } catch (error) { $("matchResults").textContent = error.message; }
+};
+$("matchResults").addEventListener("click", async event => {
+  const button = event.target.closest("[data-match-open]");
+  if (button) await openReceipt(button.dataset.matchOpen);
+});
+
 $("searchForm").onsubmit = async event => {
   event.preventDefault();
   currentPage = 1;
