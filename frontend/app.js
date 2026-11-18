@@ -22,12 +22,14 @@ function showWorkspace() {
   $("authView").classList.add("hidden");
   $("workspace").classList.remove("hidden");
   $("logoutBtn").classList.remove("hidden");
+  $("logoutAllBtn").classList.remove("hidden");
   $("userLabel").textContent = user?.name || "";
 }
 function showAuth() {
   $("authView").classList.remove("hidden");
   $("workspace").classList.add("hidden");
   $("logoutBtn").classList.add("hidden");
+  $("logoutAllBtn").classList.add("hidden");
 }
 function renderHistory(data) {
   totalPages = Math.max(1, data.pages || 1);
@@ -119,6 +121,15 @@ $("authForm").onsubmit = async event => {
     currentPage = 1;
     await loadHistory();
   } catch (error) { $("authError").textContent = error.message; }
+};
+$("logoutAllBtn").onclick = async () => {
+  if (!confirm("Sign out this account from every active session?")) return;
+  try {
+    await api("/auth/logout-all", {method:"POST"});
+    user = null;
+    selectedReceipt = null;
+    showAuth();
+  } catch (error) { alert(error.message); }
 };
 $("logoutBtn").onclick = async () => {
   try { await api("/auth/logout", {method:"POST"}); } catch {}
