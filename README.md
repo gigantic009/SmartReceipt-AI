@@ -9,7 +9,8 @@ A private receipt-processing workspace built with FastAPI, OpenCV, Tesseract OCR
 ### Capture and extraction
 - JPEG/PNG upload with a 10 MB limit and image dimension/decompression-bomb checks
 - Content-based format verification, OpenCV preprocessing, and Tesseract OCR
-- Receipt field parsing, amount normalization, tax/total validation, and confidence summary
+- Receipt field parsing, merchant/date/currency/payment metadata, amount normalization, tax/total validation, and confidence summary
+- Optional local-only Ollama structured extraction from OCR text; deterministic rules remain the default, model output is allow-listed, and model-assisted results always require human review
 - Uncertain or inconsistent results are flagged for human review; missing values are not silently invented
 
 ### Accounts and privacy
@@ -66,6 +67,15 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 uvicorn backend.app.main:app --reload
 ```
+
+Optional local model mode (Ollama must already be installed and listening on loopback):
+
+```cmd
+set SMARTRECEIPT_EXTRACTOR=ollama
+set OLLAMA_MODEL=qwen2.5:3b
+```
+
+Only OCR text is sent to the local Ollama service at `127.0.0.1:11434`; receipt images are not sent to a model, and external extraction URLs are rejected. The default `rules` mode makes no model request. If local extraction fails, SmartReceipt falls back to the deterministic parser and flags the result for human review.
 
 Open:
 - Web app: http://127.0.0.1:8000/app/
