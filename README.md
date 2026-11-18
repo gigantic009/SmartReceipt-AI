@@ -152,6 +152,8 @@ frontend/
 tests/
 ```
 
+See [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md) for the threat model, controls, and residual risks.
+
 ## Security and privacy boundaries
 
 - Do not commit real receipts, personal data, API keys, SQLite databases, or environment secrets.
