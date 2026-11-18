@@ -73,6 +73,7 @@ Optional local model mode (Ollama must already be installed and listening on loo
 ```cmd
 set SMARTRECEIPT_EXTRACTOR=ollama
 set OLLAMA_MODEL=qwen2.5:3b
+ollama pull qwen2.5:3b
 ```
 
 Only OCR text is sent to the local Ollama service at `127.0.0.1:11434`; receipt images are not sent to a model, and external extraction URLs are rejected. The default `rules` mode makes no model request. If local extraction fails, SmartReceipt falls back to the deterministic parser and flags the result for human review.
@@ -124,7 +125,7 @@ Review request example:
 python -m pytest -q
 ```
 
-Tests cover parser/validation behavior, image security, database persistence, scrypt password verification, hashed session storage, account isolation, legacy receipt migration, authenticated API behavior, review auditing, and static frontend serving.
+Tests cover parser/validation behavior, image security, database persistence, scrypt password verification, hashed session storage, account isolation, legacy receipt migration, authenticated API behavior, review auditing, reconciliation, local extractor fallback, and static frontend serving. Run the field-level parser benchmark with `python -m evaluation.run evaluation/sample_dataset.jsonl`; the included data is synthetic and is only a smoke-test example.
 
 ## Project structure
 
