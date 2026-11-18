@@ -103,7 +103,7 @@ def health_check():
 
 
 @app.post("/auth/register", status_code=201)
-def register(payload: dict = Body(...), response: Response = None):
+def register(payload: dict, response: Response):
     name = str(payload.get("name") or "").strip()
     email = str(payload.get("email") or "").strip().lower()
     password = str(payload.get("password") or "")
@@ -126,7 +126,7 @@ def register(payload: dict = Body(...), response: Response = None):
 
 
 @app.post("/auth/login")
-def login(payload: dict = Body(...), request: Request = None, response: Response = None):
+def login(payload: dict, request: Request, response: Response):
     email = str(payload.get("email") or "").strip().lower()
     password = str(payload.get("password") or "")
     key = _auth_attempt_key(request, email)
