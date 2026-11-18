@@ -33,7 +33,7 @@ def _call_local_ollama(ocr_text: str) -> dict:
         "Do not calculate or infer missing values. Use null when a field is not explicitly supported. "
         "Keep amounts as decimal strings without currency symbols. Allowed keys: "
         + ", ".join(sorted(ALLOWED_FIELDS))
-        + ". OCR TEXT START\\n" + ocr_text[:20000] + "\\nOCR TEXT END"
+        + ". OCR TEXT START\n" + ocr_text[:20000] + "\nOCR TEXT END"
     )
     payload = json.dumps({
         "model": model, "stream": False, "format": "json",
