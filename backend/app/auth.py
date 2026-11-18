@@ -16,7 +16,7 @@ def hash_password(password: str) -> str:
 def verify_password(password: str, encoded: str) -> bool:
     try:
         algorithm, n, r, p, salt_hex, digest_hex = encoded.split("$")
-        if algorithm != "scrypt":
+        if algorithm != "scrypt" or (int(n), int(r), int(p)) != (SCRYPT_N, SCRYPT_R, SCRYPT_P):
             return False
         expected = bytes.fromhex(digest_hex)
         actual = hashlib.scrypt(password.encode("utf-8"), salt=bytes.fromhex(salt_hex),
