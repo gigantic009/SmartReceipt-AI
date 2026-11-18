@@ -29,7 +29,10 @@ def test_auth_lifecycle_and_static_workspace():
     assert client.get("/auth/me").status_code == 200
     assert len(client.get("/auth/sessions").json()["sessions"]) == 1
     assert client.get("/receipts").json()["total"] == 0
-    assert client.get("/app/").status_code == 200
+    workspace = client.get("/app/")
+    assert workspace.status_code == 200
+    assert "Content-Security-Policy" in workspace.headers
+    assert workspace.headers["X-Frame-Options"] == "DENY"
     assert client.post("/auth/logout").status_code == 200
     assert client.get("/auth/me").status_code == 401
 
