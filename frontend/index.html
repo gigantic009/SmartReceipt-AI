@@ -43,6 +43,19 @@
           <div class="section-head"><div><h2>Receipt history</h2><p class="muted">Search your own saved receipts</p></div><span id="count" class="count">0</span></div>
           <form id="searchForm" class="search"><input id="query" placeholder="Search merchant or OCR text" maxlength="100"><button class="quiet">Search</button></form>
           <div id="historyList" class="history-list"></div>
+<div class="history-actions"><button id="exportHistoryBtn" class="quiet" type="button">Export history CSV</button></div>
+<div class="reconcile card">
+  <h3>Match a bank statement line</h3>
+  <p class="muted">Get explainable receipt suggestions. Nothing is auto-matched or approved.</p>
+  <form id="matchForm" class="fields">
+    <label>Statement description<input id="statementDescription" maxlength="200" required></label>
+    <label>Amount<input id="statementAmount" inputmode="decimal" required></label>
+    <label>Statement date<input id="statementDate" type="date" required></label>
+    <button class="quiet" type="submit">Suggest matches</button>
+  </form>
+  <div id="matchResults" aria-live="polite"></div>
+</div>
+
           <div class="pager"><button id="prevPage" class="quiet" type="button">Previous</button><span id="pageLabel">Page 1</span><button id="nextPage" class="quiet" type="button">Next</button></div>
         </section>
         <section class="card detail">
