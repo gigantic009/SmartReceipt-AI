@@ -288,7 +288,7 @@ def export_receipt_history(user: dict = Depends(get_current_user)):
             safe.append(cell)
         writer.writerow(safe)
     return Response(
-        content="\\ufeff" + output.getvalue(),
+        content="\ufeff" + output.getvalue(),
         media_type="text/csv",
         headers={"Content-Disposition": 'attachment; filename="smartreceipt-history.csv"'},
     )
