@@ -5,6 +5,7 @@ new account automatically. They remain inaccessible through user-facing APIs.
 """
 import json
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -15,11 +16,19 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_DATABASE_PATH = PROJECT_ROOT / "backend" / "data" / "receipts.sqlite3"
 SESSION_DAYS = 7
 
+@contextmanager
 def _connect(database_path: str | Path = DEFAULT_DATABASE_PATH):
     connection = sqlite3.connect(database_path, timeout=10)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA foreign_keys = ON")
-    return connection
+    try:
+        yield connection
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
 
 def initialize_database(database_path: str | Path = DEFAULT_DATABASE_PATH) -> None:
     path = Path(database_path)
@@ -245,3 +254,46 @@ def delete_receipt(receipt_id: str, user_id: int,
             return None
         connection.execute("DELETE FROM receipts WHERE receipt_id = ? AND user_id = ?", (receipt_id, user_id))
         return dict(row)
+
+
+def list_review_events(receipt_id: str, user_id: int,
+                       database_path: str | Path = DEFAULT_DATABASE_PATH) -> list[dict[str, Any]] | None:
+    initialize_database(database_path)
+    with _connect(database_path) as connection:
+        owned = connection.execute(
+            "SELECT 1 FROM receipts WHERE receipt_id = ? AND user_id = ?",
+            (receipt_id, user_id),
+        ).fetchone()
+        if not owned:
+            return None
+        rows = connection.execute("""
+            SELECT previous_status, new_status, changes_json, created_at
+            FROM receipt_review_events
+            WHERE receipt_id = ? AND user_id = ?
+            ORDER BY id ASC
+        """, (receipt_id, user_id)).fetchall()
+    return [{
+        "previous_status": row["previous_status"],
+        "new_status": row["new_status"],
+        "changes": json.loads(row["changes_json"]),
+        "created_at": row["created_at"],
+    } for row in rows]
+
+
+def list_reconciliation_receipts(user_id: int, *, limit: int = 500,
+                                 database_path: str | Path = DEFAULT_DATABASE_PATH) -> list[dict[str, Any]]:
+    initialize_database(database_path)
+    with _connect(database_path) as connection:
+        rows = connection.execute("""
+            SELECT receipt_id, status, receipt_json, created_at
+            FROM receipts
+            WHERE user_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+        """, (user_id, max(1, min(500, limit)))).fetchall()
+    return [{
+        "receipt_id": row["receipt_id"],
+        "status": row["status"],
+        "receipt": json.loads(row["receipt_json"]),
+        "created_at": row["created_at"],
+    } for row in rows]
