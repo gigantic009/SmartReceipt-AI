@@ -38,7 +38,7 @@ def test_receipt_detail_and_review_are_owner_scoped():
         receipt_id="private-receipt", user_id=owner["id"],
         original_filename="private.jpg", processed_filename="private.png",
         status="review_required", ocr_text="Total 50.00",
-        receipt={"total": "50.00"}, validation={"overall_status": "review_required"},
+        receipt={"merchant": "Example Store", "date": "2026-11-18", "total": "50.00"}, validation={"overall_status": "review_required"},
         ocr={"average_confidence": 60}, database_path=Path(os.environ["SMARTRECEIPT_DB_PATH"]),
     )
     owner_token = create_session(owner["id"], Path(os.environ["SMARTRECEIPT_DB_PATH"]))
@@ -55,3 +55,18 @@ def test_receipt_detail_and_review_are_owner_scoped():
         json={"status":"approved","fields":{"total":"50.50"}})
     assert approved.status_code == 200
     assert approved.json()["receipt"]["total"] == "50.50"
+
+    history = owner_client.get("/receipts/private-receipt/review-history")
+    assert history.status_code == 200
+    assert len(history.json()["events"]) == 1
+    exported = owner_client.get("/receipts/export.csv")
+    assert exported.status_code == 200
+    assert "Example Store" in exported.text
+    matches = owner_client.post("/reconciliation/suggest", json={"lines":[{
+        "description":"EXAMPLE STORE CARD", "amount":"50.00", "date":"2026-11-18"
+    }]})
+    assert matches.status_code == 200
+    suggestion = matches.json()["suggestions"][0]
+    assert suggestion["requires_human_confirmation"] is True
+    assert suggestion["candidates"][0]["receipt_id"] == "private-receipt"
+
