@@ -48,8 +48,15 @@ function renderHistory(data) {
 }
 async function loadHistory() {
   const q = $("query").value.trim();
-  const data = await api("/receipts?page=" + currentPage + "&page_size=15&q=" + encodeURIComponent(q));
-  renderHistory(data);
+  $("historyList").setAttribute("aria-busy", "true");
+  try {
+    const data = await api("/receipts?page=" + currentPage + "&page_size=15&q=" + encodeURIComponent(q));
+    renderHistory(data);
+  } catch (error) {
+    $("historyList").innerHTML = '<p class="error" role="alert">' + esc(error.message) + '</p>';
+  } finally {
+    $("historyList").removeAttribute("aria-busy");
+  }
 }
 async function openReceipt(id) {
   selectedReceipt = id;
