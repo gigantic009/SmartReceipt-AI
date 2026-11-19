@@ -1,73 +1,128 @@
 # SmartReceipt AI
 
-An AI-powered receipt scanner that extracts structured information from receipt images using OCR, normalizes financial data, and validates transactions.
+A private receipt-processing workspace built with FastAPI, OpenCV, Tesseract OCR, SQLite, and a responsive web interface. It extracts receipt data, validates financial totals, and keeps human corrections auditable.
 
-## Current MVP features
+> **Status:** Active portfolio project. Authentication, user-scoped receipt storage, review, history, and a browser UI are implemented in this upgrade branch. OCR extraction remains rule-based and requires evaluation against a representative dataset before accuracy claims or production use.
 
-- JPEG and PNG receipt upload (maximum 10 MB, 25 million pixels, and 12,000 pixels per dimension)
-- Image dimension checks to reduce decompression-bomb and oversized-image risks
-- Image-content verification and preprocessing with OpenCV
-- OCR using Tesseract
-- Receipt field extraction across common invoice label variations (bill/invoice number, date, guest/customer, tax, total, and payment labels)
-- Local SQLite persistence for OCR text, parsed receipt fields, validation results, and confidence metadata
-- Preservation of raw OCR amounts alongside normalized values
-- Conservative handling of missing fields: uncertain values are left blank and sent for human review
-- Tax-total and payment reconciliation
-- OCR confidence summary and review-required status
-- Automated unit tests for parsing, normalization, and validation
+## Product capabilities
 
-## Requirements
+### Capture and extraction
+- JPEG/PNG upload with a 10 MB limit and image dimension/decompression-bomb checks
+- Content-based format verification, OpenCV preprocessing, and Tesseract OCR
+- Receipt field parsing, merchant/date/currency/payment metadata, amount normalization, tax/total validation, and confidence summary
+- Optional local-only Ollama structured extraction from OCR text; deterministic rules remain the default, model output is allow-listed, and model-assisted results always require human review
+- Uncertain or inconsistent results are flagged for human review; missing values are not silently invented
 
-- Python 3.10 or newer
-- Tesseract OCR with the English language data installed
-- Python dependencies from `requirements.txt`
+### Accounts and privacy
+- Registration and login with salted scrypt password hashes
+- Random opaque session tokens; only SHA-256 token digests are stored
+- HttpOnly, SameSite=Strict session cookies; set `COOKIE_SECURE=true` in production behind HTTPS
+- Failed-login throttling by IP/email key
+- Every receipt query is scoped to the authenticated account
+- Legacy receipt rows are migrated with a null owner and are never assigned to a newly registered user
+- Original and processed images are stored outside the static frontend and served only after an ownership check
 
-### Install Tesseract
+### History and human review
+- Paginated receipt history and OCR/parsed-text search
+- Receipt detail and authenticated original/processed image retrieval
+- Reviewer edits for merchant, date, subtotal, tax, total, currency, and payment method
+- Approve/reject decisions with before/after review events in an audit table
+- Delete removes the owned record and its associated image files
 
-Install Tesseract OCR for your operating system.
+### Web application
+- Responsive sign-in/register flow, upload workspace, history search, detail view, image preview, and review form
+- Keyboard-accessible native forms and explicit approve/reject actions
+- Open the UI at `/app/`; API documentation is at `/docs`
 
-On Windows, the default installer location is:
+## Technology
 
-```text
-C:\Program Files\Tesseract-OCR\tesseract.exe
-```
-
-If Tesseract is installed elsewhere or is not on PATH, set `TESSERACT_CMD` to its executable path.
-
-Windows CMD example:
-
-```cmd
-set TESSERACT_CMD=C:\Program Files\Tesseract-OCR\tesseract.exe
-```
-
-Linux/macOS: ensure the `tesseract` executable is available on PATH, or set `TESSERACT_CMD`.
+| Layer | Technology |
+|---|---|
+| API | FastAPI, Python 3.10+ |
+| Image processing | OpenCV, Pillow |
+| OCR | Tesseract via pytesseract |
+| Persistence | SQLite with explicit ownership and migrations |
+| Authentication | Python scrypt, opaque random sessions, SHA-256 token digests |
+| Frontend | HTML, CSS, vanilla JavaScript |
+| Tests | pytest, FastAPI TestClient / HTTPX |
 
 ## Setup
 
-Run commands from the repository root.
+### Requirements
+- Python 3.10 or newer
+- Tesseract OCR with English language data installed
+- Dependencies from `requirements.txt`
 
-### Windows CMD
+On Windows, the default Tesseract path is:
+```text
+C:\Program Files\Tesseract-OCR\tesseract.exe
+```
+If needed, set `TESSERACT_CMD` to the executable path.
 
+### Install and run (Windows CMD)
 ```cmd
 python -m venv .venv
 .venv\Scripts\activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-```
-
-### Start the API
-
-```cmd
 uvicorn backend.app.main:app --reload
 ```
 
-Open the interactive API documentation at:
+Optional local model mode (Ollama must already be installed and listening on loopback):
 
-- http://127.0.0.1:8000/docs
+```cmd
+set SMARTRECEIPT_EXTRACTOR=ollama
+set OLLAMA_MODEL=qwen2.5:3b
+ollama pull qwen2.5:3b
+```
 
-Health check:
+Only OCR text is sent to the local Ollama service at `127.0.0.1:11434`; receipt images are not sent to a model, and external extraction URLs are rejected. The default `rules` mode makes no model request. If local extraction fails, SmartReceipt falls back to the deterministic parser and flags the result for human review.
 
-- http://127.0.0.1:8000/health
+Open:
+- Web app: http://127.0.0.1:8000/app/
+- API docs: http://127.0.0.1:8000/docs
+- Health: http://127.0.0.1:8000/health
+
+For production, terminate TLS at a trusted reverse proxy and set:
+```text
+COOKIE_SECURE=true
+ENVIRONMENT=production
+```
+You can override local data paths with `SMARTRECEIPT_DB_PATH`, `SMARTRECEIPT_UPLOAD_DIR`, and `SMARTRECEIPT_OCR_READY_DIR`. Keep all three outside the public static directory and back them up securely.
+
+## API
+
+All receipt endpoints and `/auth/me` require a valid session.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/auth/register` | Create account |
+| POST | `/auth/login` | Sign in |
+| POST | `/auth/logout` | Revoke current session |
+| GET | `/auth/me` | Current account |
+| GET | `/auth/sessions` | List active sessions without exposing session tokens |
+| POST | `/auth/logout-all` | Revoke every session for the current account |
+| POST | `/upload-receipt` | Upload, OCR, validate, and save a private receipt |
+| GET | `/receipts` | Paginated owned history; supports `page`, `page_size`, `q` |
+| GET | `/receipts/export.csv` | Export up to 500 owned receipt records |
+| POST | `/reconciliation/suggest` | Rank possible statement matches with evidence; never auto-confirms |
+| GET | `/receipts/{id}` | Owned receipt detail |
+| GET | `/receipts/{id}/image?kind=original` | Owned original/processed image |
+| PATCH | `/receipts/{id}/review` | Edit allowed fields and approve/reject with audit event |
+| GET | `/receipts/{id}/review-history` | Read the receipt's owned review audit events |
+| DELETE | `/receipts/{id}` | Delete owned record and images |
+
+Review request example:
+```json
+{
+  "status": "approved",
+  "fields": {
+    "merchant": "Example Store",
+    "total": "125.50",
+    "currency": "INR"
+  }
+}
+```
 
 ## Run tests
 
@@ -75,52 +130,44 @@ Health check:
 python -m pytest -q
 ```
 
-## API endpoint
-
-### `POST /upload-receipt`
-
-Send a multipart form request with the image in a field named `file`.
-
-The response includes:
-
-- Receipt identifier and stored filenames
-- Raw OCR text
-- Extracted and normalized receipt fields
-- Financial validation results
-- Average OCR confidence and review status
-
-A receipt marked `review_required` should be checked by a person. OCR output is not guaranteed to be correct, and the application does not silently infer missing financial values.
+Tests cover parser/validation behavior, image security, database persistence, scrypt password verification, hashed session storage, account isolation, legacy receipt migration, authenticated API behavior, review auditing, reconciliation, local extractor fallback, and static frontend serving. Run the field-level parser benchmark with `python -m evaluation.run evaluation/sample_dataset.jsonl`; the included data is synthetic and is only a smoke-test example.
 
 ## Project structure
 
 ```text
-backend/
-  app/
-    database.py
-    image_processor.py
-    image_security.py
-    main.py
-    ocr_corrector.py
-    ocr_engine.py
-    receipt_parser.py
-    validate_receipt.py
-  data/          # local SQLite database; ignored by Git
-  uploads/       # generated uploads; ignored by Git
-  ocr_ready/     # generated processed images; ignored by Git
+backend/app/
+  auth.py                 # password hashing and opaque session tokens
+  database.py             # migrations, account ownership, receipt history and audit
+  image_processor.py
+  image_security.py
+  main.py                 # authenticated FastAPI routes
+  ocr_corrector.py
+  ocr_engine.py
+  receipt_parser.py
+  validate_receipt.py
+frontend/
+  index.html
+  app.js
+  styles.css
 tests/
-requirements.txt
 ```
 
-## Current limitations
+See [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md) for the threat model, controls, and residual risks.
 
-- Receipt extraction is still rule-based. It recognizes several common label variations, but complex tables, unusual layouts, poor image quality, and OCR mistakes can still require manual review.
-- The parser does not infer missing subtotal/tax/payment values from line items. This is intentional to avoid fabricating financial data.
-- The current OCR pipeline uses English Tesseract and a single page-segmentation mode; multilingual receipts and difficult layouts need further evaluation.
-- Receipt records are persisted locally in `backend/data/receipts.sqlite3`; the database is ignored by Git because it may contain personal and financial information.
-- There are not yet authenticated receipt-history endpoints or user-level data isolation.
-- The API currently returns OCR and parsed data directly; a frontend and authentication are planned.
-- Human review is required for low-confidence or financially inconsistent results.
+## Security and privacy boundaries
 
-## Privacy and security
+- Do not commit real receipts, personal data, API keys, SQLite databases, or environment secrets.
+- Legacy unowned receipt records remain inaccessible to user accounts; there is no automatic owner assignment.
+- Session cookies are HttpOnly and SameSite=Strict. Production must use HTTPS and `COOKIE_SECURE=true`.
+- Stored images are not exposed by static hosting; image routes perform receipt ownership checks.
+- Review events preserve who changed a receipt, the prior/new status, and before/after field values.
+- The OCR engine is not a guarantee of correctness. A human must verify amounts against the source image. The reconciliation endpoint ranks candidate receipts by amount, date, and merchant text, explains the evidence, and never confirms a match automatically.
+- SQLite files and uploaded images need encrypted storage, tested backups, retention policy, and operational monitoring before handling real customer financial data.
 
-Do not commit real receipts, personal data, API keys, local database files, or environment secrets. Generated upload, preprocessing, and database directories are excluded by `.gitignore`. The current local SQLite database is not encrypted and must not be used for sensitive production data. Before deployment, add authentication, per-user authorization, retention/deletion controls, encrypted storage, and secure backups.
+## Roadmap
+
+See [docs/FULLSTACK_UPGRADE_PLAN.md](docs/FULLSTACK_UPGRADE_PLAN.md). Remaining major work includes a reproducible OCR evaluation benchmark, multi-layout and multilingual extraction, statement-to-receipt reconciliation, encrypted object storage, retention controls, deployment automation, and production observability.
+
+## Research references
+
+The product workflow was informed by open-source patterns from [Actual Budget](https://github.com/actualbudget/actual) and [Firefly III](https://github.com/firefly-iii/firefly-iii) for financial data integrity and auditability, and [Receipt Tracker](https://github.com/luizpersechini/receipt-tracker) for local-first OCR and receipt/statement reconciliation concepts. SmartReceipt AI is an independent implementation; no third-party source code is copied. It also follows security patterns from the user's GODMAN project: least-privilege ownership checks, bounded inputs, fail-safe behavior, explicit human decisions, and audit records. No GODMAN code is imported.

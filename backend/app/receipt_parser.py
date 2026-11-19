@@ -94,6 +94,58 @@ def extract_final_payment(text: str) -> str | None:
     return _extract_payment_value(text, (r"Final\s*Payment", r"Paid\s*Amount"))
 
 
+
+def extract_merchant(text: str) -> str | None:
+    """Conservatively infer a likely merchant heading; ambiguous lines stay blank."""
+    ignored = re.compile(
+        r"^(?:guest|customer|invoice|bill|tax invoice|receipt|hotel bill|date|gst|phone|tel|email|address)\b",
+        re.IGNORECASE,
+    )
+    for line in _lines(text)[:10]:
+        if re.search(r"\+?\d[\d\s().-]{7,}", line):
+            continue
+        candidate = re.split(
+            r"(?i)\b(?:Date|Invoice(?:\s*(?:No|Number))?|Bill(?:\s*(?:No|Number))?|GSTIN|Phone|Tel|Email|Address)\b|[@©|]",
+            line,
+            maxsplit=1,
+        )[0]
+        candidate = re.sub(r"^[^A-Za-z]+|[^A-Za-z0-9&.' -]+$", "", candidate).strip()
+        candidate = re.sub(r"\s+", " ", candidate)
+        if not candidate or ignored.search(candidate) or len(candidate) < 2 or len(candidate) > 80:
+            continue
+        if not re.search(r"[A-Za-z]{2}", candidate):
+            continue
+        return candidate
+    return None
+
+
+def extract_currency(text: str) -> str | None:
+    if re.search(r"₹|\bINR\b|\bRs\.?\b|\bRupees?\b", text, re.IGNORECASE):
+        return "INR"
+    if "€" in text or re.search(r"\bEUR\b", text, re.IGNORECASE):
+        return "EUR"
+    if "£" in text or re.search(r"\bGBP\b", text, re.IGNORECASE):
+        return "GBP"
+    if re.search(r"\bUSD\b", text, re.IGNORECASE):
+        return "USD"
+    return None
+
+
+def extract_payment_method(text: str) -> str | None:
+    patterns = (
+        (r"\bUPI\b|\bUPI ID\b", "UPI"),
+        (r"\bCASH\b", "Cash"),
+        (r"\bCREDIT CARD\b", "Credit card"),
+        (r"\bDEBIT CARD\b", "Debit card"),
+        (r"\bRUPAY\b", "RuPay"),
+        (r"\bVISA\b|\bMASTERCARD\b", "Card"),
+        (r"\bNET ?BANKING\b", "Net banking"),
+    )
+    for pattern, label in patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            return label
+    return None
+
 def normalize_receipt_amount(value: str | None) -> str | None:
     """Normalize a monetary value without guessing ambiguous formats."""
     if value is None:
@@ -132,8 +184,13 @@ def parse_receipt(text: str) -> dict:
         key: normalize_receipt_amount(value)
         for key, value in raw_amounts.items()
     }
+    basic = extract_basic_details(text)
     return {
-        **extract_basic_details(text),
+        **basic,
+        "merchant": extract_merchant(text),
+        "date": basic["issue_date"],
+        "currency": extract_currency(text),
+        "payment_method": extract_payment_method(text),
         **normalized_amounts,
         "raw_amounts": raw_amounts,
     }
